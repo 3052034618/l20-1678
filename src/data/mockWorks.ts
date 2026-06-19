@@ -1,4 +1,4 @@
-import type { Work, UrgeMessage, UrgeState } from '../types';
+import type { Work, UrgeMessage, UrgeState, ShopItem } from '../types';
 
 export const mockWorks: Work[] = [
   {
@@ -168,6 +168,7 @@ function generateFanMessages(workId: string, count: number): UrgeMessage[] {
       userName: fan.name,
       avatar: fan.avatar,
       message: msg,
+      isUser: false,
       createdAt: new Date(Date.now() - Math.random() * 48 * 60 * 60 * 1000).toISOString(),
     });
   }
@@ -258,4 +259,19 @@ export const beastColors = [
   '#DDA0DD',
   '#87CEEB',
   '#F0E68C',
+];
+
+export const shopItems: ShopItem[] = [
+  { id: 'bg-stars', name: '星空背景', category: 'background', price: 5, emoji: '🌌', description: '小兽的窝铺满星光' },
+  { id: 'bg-meadow', name: '草地背景', category: 'background', price: 5, emoji: '🌿', description: '阳光草地的温暖' },
+  { id: 'bg-clouds', name: '云朵背景', category: 'background', price: 8, emoji: '☁️', description: '软绵绵的云端小窝' },
+  { id: 'bg-sakura', name: '樱花背景', category: 'background', price: 10, emoji: '🌸', description: '花瓣飘落的浪漫' },
+  { id: 'toy-ball', name: '毛线球', category: 'toy', price: 3, emoji: '🧶', description: '小兽最爱的玩具' },
+  { id: 'toy-fish', name: '小鱼干', category: 'toy', price: 3, emoji: '🐟', description: '香的嘞~' },
+  { id: 'toy-pillow', name: '抱枕', category: 'toy', price: 4, emoji: '🛋️', description: '打瞌睡必备' },
+  { id: 'toy-book', name: '小书本', category: 'toy', price: 4, emoji: '📖', description: '等更时翻翻书' },
+  { id: 'toy-lantern', name: '小灯笼', category: 'toy', price: 6, emoji: '🏮', description: '温暖的光' },
+  { id: 'title-waiter', name: '守候之星', category: 'title', price: 8, emoji: '⭐', description: '耐心等待的证明' },
+  { id: 'title-fan', name: '忠实读者', category: 'title', price: 6, emoji: '📚', description: '追更到底的决心' },
+  { id: 'title-sweet', name: '甜蜜守护', category: 'title', price: 10, emoji: '💖', description: '最温柔的陪伴者' },
 ];

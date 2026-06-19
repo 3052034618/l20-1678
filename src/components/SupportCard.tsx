@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Copy, Share2, Check, Image } from 'lucide-react';
+import { Copy, Share2, Check } from 'lucide-react';
 import type { SupportCard as SupportCardType } from '../types';
 import { cn } from '../lib/utils';
 
@@ -17,8 +17,6 @@ export function SupportCardView({ card, onShare, workCover }: SupportCardProps) 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(shareText);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch {
       const textarea = document.createElement('textarea');
       textarea.value = shareText;
@@ -26,12 +24,17 @@ export function SupportCardView({ card, onShare, workCover }: SupportCardProps) 
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     }
+    setCopied(true);
+    if (!card.shared) {
+      onShare();
+    }
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleShare = () => {
+    if (card.shared) return;
+
     if (navigator.share) {
       navigator.share({
         title: `${card.workTitle} 应援卡`,
@@ -41,7 +44,6 @@ export function SupportCardView({ card, onShare, workCover }: SupportCardProps) 
       }).catch(() => {});
     } else {
       handleCopy();
-      onShare();
     }
   };
 
@@ -91,36 +93,32 @@ export function SupportCardView({ card, onShare, workCover }: SupportCardProps) 
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <button
-          onClick={handleCopy}
-          className={cn(
-            'flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all',
-            copied
-              ? 'bg-mint-100 text-mint-700'
-              : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
-          )}
-        >
-          {copied ? <Check size={16} /> : <Copy size={16} />}
-          {copied ? '已复制' : '复制文案'}
-        </button>
-        <button
-          onClick={handleShare}
-          className={cn(
-            'flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all',
-            card.shared
-              ? 'bg-mint-100 text-mint-700'
-              : 'bg-gradient-to-r from-coral-500 to-peach-500 text-white shadow-md hover:shadow-lg'
-          )}
-        >
-          {card.shared ? <Check size={16} /> : <Share2 size={16} />}
-          {card.shared ? '已分享' : '分享应援'}
-        </button>
-      </div>
-
-      {card.shared && (
-        <div className="text-center text-xs text-mint-600 font-medium">
-          ✨ 分享成功！小兽获得 +3 成长经验
+      {card.shared ? (
+        <div className="flex items-center justify-center gap-2 py-3 bg-mint-50 rounded-xl text-sm text-mint-700 font-medium">
+          <Check size={16} />
+          已分享 ✨ 小兽获得 +3 成长经验
+        </div>
+      ) : (
+        <div className="flex gap-3">
+          <button
+            onClick={handleCopy}
+            className={cn(
+              'flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm transition-all',
+              copied
+                ? 'bg-mint-100 text-mint-700'
+                : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+            )}
+          >
+            {copied ? <Check size={16} /> : <Copy size={16} />}
+            {copied ? '已复制并分享' : '复制文案'}
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-medium text-sm bg-gradient-to-r from-coral-500 to-peach-500 text-white shadow-md hover:shadow-lg transition-all"
+          >
+            <Share2 size={16} />
+            分享应援
+          </button>
         </div>
       )}
     </div>

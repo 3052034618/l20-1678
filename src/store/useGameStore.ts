@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { Work, Beast, BeastStatus, Candy, UrgeState, UrgeMessage, CelebrationRecord, SupportCard, MoodEntry } from '../types';
-import { MOOD_MAP, getLevelFromExp, getExpForNextLevel } from '../types';
-import { mockWorks, urgeStates as mockUrgeStates, beastColors, encouragementMessages, supportCardSlogans } from '../data/mockWorks';
+import type { Work, Beast, BeastStatus, Candy, UrgeState, UrgeMessage, CelebrationRecord, SupportCard, MoodEntry, TimelineEvent, TimelineEventType, ShopItem } from '../types';
+import { MOOD_MAP, getLevelFromExp, getAvailableCandies } from '../types';
+import { mockWorks, urgeStates as mockUrgeStates, beastColors, encouragementMessages, supportCardSlogans, shopItems } from '../data/mockWorks';
 import { loadFromStorage, saveToStorage, isSameDay, getDaysSince, generateBeastName } from '../utils/storage';
 
 interface GameState {
@@ -12,20 +12,24 @@ interface GameState {
   urgeStates: Record<string, UrgeState>;
   celebrationRecords: CelebrationRecord[];
   collectedChapterIds: string[];
+  timeline: TimelineEvent[];
+  shopItems: ShopItem[];
 
   subscribeWork: (workId: string) => void;
   unsubscribeWork: (workId: string) => void;
-  feedBeast: (workId: string, message: string) => void;
+  feedBeast: (workId: string) => void;
   urgeUpdate: (workId: string, message: string) => void;
-  generateSupportCard: (workId: string) => void;
   markSupportCardShared: (workId: string) => void;
   collectCandy: (workId: string) => void;
   isChapterCollected: (workId: string, chapterTitle: string) => boolean;
+  purchaseShopItem: (workId: string, itemId: string) => boolean;
   getBeastForWork: (workId: string) => Beast | undefined;
   getUrgeStateForWork: (workId: string) => UrgeState | undefined;
   getCelebrationHistory: (workId: string) => CelebrationRecord[];
+  getTimelineForDay: (dateStr: string) => TimelineEvent[];
   checkDailyReset: () => void;
   getEncouragementMessages: () => string[];
+  getAvailableCandies: () => number;
 }
 
 function calculateVitality(daysSinceUpdate: number, hasFed: boolean): number {
@@ -47,6 +51,25 @@ function addMoodEntry(diary: MoodEntry[], entry: MoodEntry): MoodEntry[] {
   return [entry, ...filtered].slice(0, 30);
 }
 
+function addTimelineEvent(events: TimelineEvent[], event: TimelineEvent): TimelineEvent[] {
+  return [event, ...events].slice(0, 200);
+}
+
+function buildSupportCardMessages(messages: UrgeMessage[]): string[] {
+  const userMsgs = messages.filter(m => m.isUser);
+  const otherMsgs = messages.filter(m => !m.isUser);
+  const selected: string[] = [];
+  for (const m of userMsgs) {
+    if (selected.length >= 2) break;
+    selected.push(m.message);
+  }
+  for (const m of otherMsgs) {
+    if (selected.length >= 3) break;
+    if (!selected.includes(m.message)) selected.push(m.message);
+  }
+  return selected.slice(0, 3);
+}
+
 function persist(state: Partial<GameState>) {
   const s = state as any;
   saveToStorage({
@@ -56,6 +79,7 @@ function persist(state: Partial<GameState>) {
     urgeStates: s.urgeStates,
     celebrationRecords: s.celebrationRecords,
     collectedChapterIds: s.collectedChapterIds,
+    timeline: s.timeline,
     lastCheckDate: new Date().toDateString(),
   });
 }
@@ -85,6 +109,7 @@ function createBeast(work: Work): Beast {
       event: `和 ${work.title} 的小兽初遇了！`,
       emoji: '🐾',
     }],
+    decorations: { background: null, toy: null, title: null },
   };
 }
 
@@ -97,8 +122,47 @@ Object.keys(storageData.beasts).forEach(key => {
     ...b,
     level: b.level || getLevelFromExp(b.totalFedDays * 2),
     moodDiary: b.moodDiary || [],
+    decorations: b.decorations || { background: null, toy: null, title: null },
   };
 });
+
+function runDailyResetOnLoad() {
+  const today = new Date().toDateString();
+  if (storageData.lastCheckDate && !isSameDay(storageData.lastCheckDate, today)) {
+    Object.keys(initialBeasts).forEach(workId => {
+      const beast = initialBeasts[workId];
+      const work = mockWorks.find(w => w.id === workId);
+      if (work) {
+        const daysSinceUpdate = getDaysSince(work.lastUpdateDate);
+        const newVitality = calculateVitality(daysSinceUpdate, false);
+        const newStatus = getStatusFromVitality(newVitality);
+        initialBeasts[workId] = {
+          ...beast,
+          fedToday: false,
+          vitality: newVitality,
+          status: newStatus,
+          waitDays: daysSinceUpdate,
+        };
+      }
+    });
+
+    Object.keys(storageData.urgeStates).forEach(workId => {
+      storageData.urgeStates[workId] = {
+        ...storageData.urgeStates[workId],
+        userHasUrged: false,
+      };
+    });
+
+    saveToStorage({
+      ...storageData,
+      beasts: initialBeasts,
+      urgeStates: storageData.urgeStates,
+      lastCheckDate: today,
+    });
+  }
+}
+
+runDailyResetOnLoad();
 
 export const useGameStore = create<GameState>((set, get) => ({
   works: mockWorks,
@@ -108,6 +172,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   urgeStates: storageData.urgeStates,
   celebrationRecords: storageData.celebrationRecords,
   collectedChapterIds: storageData.collectedChapterIds,
+  timeline: storageData.timeline,
+  shopItems,
 
   subscribeWork: (workId: string) => {
     const work = get().works.find(w => w.id === workId);
@@ -124,10 +190,22 @@ export const useGameStore = create<GameState>((set, get) => ({
     };
 
     set(state => {
+      const newTimeline = addTimelineEvent(state.timeline, {
+        id: `tl-${Date.now()}`,
+        workId,
+        workTitle: work.title,
+        workCover: work.cover,
+        type: 'subscribe',
+        description: `订阅了《${work.title}》，${beast.name}出生啦！`,
+        emoji: '🐾',
+        timestamp: new Date().toISOString(),
+      });
+
       const newState = {
         subscribedWorkIds: [...state.subscribedWorkIds, workId],
         beasts: { ...state.beasts, [workId]: beast },
         urgeStates: { ...state.urgeStates, [workId]: urgeState },
+        timeline: newTimeline,
       };
       persist({ ...state, ...newState });
       return newState;
@@ -179,7 +257,6 @@ export const useGameStore = create<GameState>((set, get) => ({
       const newExp = beast.level.exp + 2;
       const newLevel = getLevelFromExp(newExp);
       const newStatus = getStatusFromVitality(newVitality);
-      const moodInfo = MOOD_MAP[newStatus];
 
       const newBeast: Beast = {
         ...beast,
@@ -204,8 +281,19 @@ export const useGameStore = create<GameState>((set, get) => ({
         fromDaily: state.candies.fromDaily + 1,
       };
 
+      const newTimeline = addTimelineEvent(state.timeline, {
+        id: `tl-${Date.now()}`,
+        workId,
+        workTitle: work.title,
+        workCover: work.cover,
+        type: 'feed',
+        description: `投喂了${beast.name}，连续第${consecutiveDays}天`,
+        emoji: '💕',
+        timestamp: new Date().toISOString(),
+      });
+
       const newBeasts = { ...state.beasts, [workId]: newBeast };
-      const updated = { beasts: newBeasts, candies: newCandies };
+      const updated = { beasts: newBeasts, candies: newCandies, timeline: newTimeline };
       persist({ ...state, ...updated });
       return updated;
     });
@@ -216,12 +304,16 @@ export const useGameStore = create<GameState>((set, get) => ({
       const urgeState = state.urgeStates[workId];
       if (!urgeState || urgeState.userHasUrged) return state;
 
+      const work = state.works.find(w => w.id === workId);
+      if (!work) return state;
+
       const newMessage: UrgeMessage = {
         id: `msg-${Date.now()}`,
         workId,
         userName: '我',
         avatar: '😊',
         message,
+        isUser: true,
         createdAt: new Date().toISOString(),
       };
 
@@ -230,11 +322,11 @@ export const useGameStore = create<GameState>((set, get) => ({
 
       if (newCurrentCount >= urgeState.targetCount && !urgeState.supportCard) {
         const allMessages = [...urgeState.messages, newMessage];
-        const selectedMsgs = allMessages.slice(0, 3).map(m => m.message);
+        const selectedMsgs = buildSupportCardMessages(allMessages);
         newSupportCard = {
           id: `card-${Date.now()}`,
           workId,
-          workTitle: state.works.find(w => w.id === workId)?.title || '',
+          workTitle: work.title,
           currentCount: newCurrentCount,
           targetCount: urgeState.targetCount,
           slogan: supportCardSlogans[Math.floor(Math.random() * supportCardSlogans.length)],
@@ -270,35 +362,18 @@ export const useGameStore = create<GameState>((set, get) => ({
         };
       }
 
-      const updated = { urgeStates: newUrgeStates, beasts: newBeasts };
-      persist({ ...state, ...updated });
-      return updated;
-    });
-  },
-
-  generateSupportCard: (workId: string) => {
-    set(state => {
-      const urgeState = state.urgeStates[workId];
-      if (!urgeState || urgeState.currentCount < urgeState.targetCount) return state;
-
-      if (urgeState.supportCard) return state;
-
-      const selectedMsgs = urgeState.messages.slice(0, 3).map(m => m.message);
-      const newSupportCard: SupportCard = {
-        id: `card-${Date.now()}`,
+      const newTimeline = addTimelineEvent(state.timeline, {
+        id: `tl-${Date.now()}`,
         workId,
-        workTitle: state.works.find(w => w.id === workId)?.title || '',
-        currentCount: urgeState.currentCount,
-        targetCount: urgeState.targetCount,
-        slogan: supportCardSlogans[Math.floor(Math.random() * supportCardSlogans.length)],
-        selectedMessages: selectedMsgs,
-        createdAt: new Date().toISOString(),
-        shared: false,
-      };
+        workTitle: work.title,
+        workCover: work.cover,
+        type: 'urge',
+        description: `为《${work.title}》催更：${message}`,
+        emoji: '📣',
+        timestamp: new Date().toISOString(),
+      });
 
-      const newUrgeState = { ...urgeState, supportCard: newSupportCard };
-      const newUrgeStates = { ...state.urgeStates, [workId]: newUrgeState };
-      const updated = { urgeStates: newUrgeStates };
+      const updated = { urgeStates: newUrgeStates, beasts: newBeasts, timeline: newTimeline };
       persist({ ...state, ...updated });
       return updated;
     });
@@ -309,10 +384,13 @@ export const useGameStore = create<GameState>((set, get) => ({
       const urgeState = state.urgeStates[workId];
       if (!urgeState?.supportCard) return state;
 
+      if (urgeState.supportCard.shared) return state;
+
       const newSupportCard = { ...urgeState.supportCard, shared: true };
       const newUrgeState = { ...urgeState, supportCard: newSupportCard };
       const newUrgeStates = { ...state.urgeStates, [workId]: newUrgeState };
 
+      const work = state.works.find(w => w.id === workId);
       const beast = state.beasts[workId];
       const newBeasts = { ...state.beasts };
       if (beast) {
@@ -329,7 +407,18 @@ export const useGameStore = create<GameState>((set, get) => ({
         };
       }
 
-      const updated = { urgeStates: newUrgeStates, beasts: newBeasts };
+      const newTimeline = addTimelineEvent(state.timeline, {
+        id: `tl-${Date.now()}`,
+        workId,
+        workTitle: work?.title || '',
+        workCover: work?.cover || '📖',
+        type: 'share',
+        description: `分享《${work?.title || ''}》应援卡`,
+        emoji: '💌',
+        timestamp: new Date().toISOString(),
+      });
+
+      const updated = { urgeStates: newUrgeStates, beasts: newBeasts, timeline: newTimeline };
       persist({ ...state, ...updated });
       return updated;
     });
@@ -387,12 +476,24 @@ export const useGameStore = create<GameState>((set, get) => ({
       const newRecords = [...state.celebrationRecords, newRecord];
       const newCollectedChapterIds = [...state.collectedChapterIds, chapterId];
 
+      const newTimeline = addTimelineEvent(state.timeline, {
+        id: `tl-${Date.now()}`,
+        workId,
+        workTitle: work.title,
+        workCover: work.cover,
+        type: 'celebrate',
+        description: `《${work.title}》${work.lastChapter}更新！等了${waitDays}天，领到${candyReward}颗糖果`,
+        emoji: '🎉',
+        timestamp: new Date().toISOString(),
+      });
+
       const updated = {
         works: newWorks,
         beasts: newBeasts,
         candies: newCandies,
         celebrationRecords: newRecords,
         collectedChapterIds: newCollectedChapterIds,
+        timeline: newTimeline,
       };
       persist({ ...state, ...updated });
       return updated;
@@ -402,6 +503,66 @@ export const useGameStore = create<GameState>((set, get) => ({
   isChapterCollected: (workId: string, chapterTitle: string) => {
     const chapterId = `${workId}-${chapterTitle}`;
     return get().collectedChapterIds.includes(chapterId);
+  },
+
+  purchaseShopItem: (workId: string, itemId: string): boolean => {
+    const item = shopItems.find(i => i.id === itemId);
+    if (!item) return false;
+
+    const available = getAvailableCandies(get().candies);
+    if (available < item.price) return false;
+
+    const beast = get().beasts[workId];
+    if (!beast) return false;
+
+    const currentDeco = beast.decorations[item.category];
+    if (currentDeco === itemId) return false;
+
+    let success = false;
+    set(state => {
+      const b = state.beasts[workId];
+      if (!b) return state;
+
+      const avail = getAvailableCandies(state.candies);
+      if (avail < item.price) return state;
+
+      const newDecorations = { ...b.decorations, [item.category]: itemId };
+      const newBeast: Beast = {
+        ...b,
+        decorations: newDecorations,
+        moodDiary: addMoodEntry(b.moodDiary, {
+          date: new Date().toISOString(),
+          mood: 'ecstatic',
+          event: `小窝换上了${item.name}！${item.description}`,
+          emoji: '🏠',
+        }),
+      };
+
+      const newCandies = {
+        ...state.candies,
+        spent: state.candies.spent + item.price,
+      };
+
+      const work = state.works.find(w => w.id === workId);
+
+      const newTimeline = addTimelineEvent(state.timeline, {
+        id: `tl-${Date.now()}`,
+        workId,
+        workTitle: work?.title || '',
+        workCover: work?.cover || '📖',
+        type: 'decorate',
+        description: `为${b.name}兑换了${item.name}`,
+        emoji: '🏠',
+        timestamp: new Date().toISOString(),
+      });
+
+      const newBeasts = { ...state.beasts, [workId]: newBeast };
+      const updated = { beasts: newBeasts, candies: newCandies, timeline: newTimeline };
+      persist({ ...state, ...updated });
+      success = true;
+      return updated;
+    });
+    return success;
   },
 
   getBeastForWork: (workId: string) => {
@@ -416,73 +577,22 @@ export const useGameStore = create<GameState>((set, get) => ({
     return get().celebrationRecords.filter(r => r.workId === workId);
   },
 
+  getTimelineForDay: (dateStr: string) => {
+    const date = new Date(dateStr);
+    return get().timeline.filter(e => {
+      const eDate = new Date(e.timestamp);
+      return eDate.getFullYear() === date.getFullYear() &&
+        eDate.getMonth() === date.getMonth() &&
+        eDate.getDate() === date.getDate();
+    });
+  },
+
   checkDailyReset: () => {
-    const today = new Date().toDateString();
-    const stored = loadFromStorage();
-    const lastDate = stored.lastCheckDate;
-
-    if (lastDate && !isSameDay(lastDate, today)) {
-      set(state => {
-        const newBeasts = { ...state.beasts };
-        Object.keys(newBeasts).forEach(workId => {
-          const beast = newBeasts[workId];
-          const work = state.works.find(w => w.id === workId);
-          if (work) {
-            const daysSinceUpdate = getDaysSince(work.lastUpdateDate);
-            const newVitality = calculateVitality(daysSinceUpdate, false);
-            const newStatus = getStatusFromVitality(newVitality);
-            const moodInfo = MOOD_MAP[newStatus];
-
-            let waitEvent = '';
-            if (daysSinceUpdate > 14) {
-              waitEvent = `已经等了${daysSinceUpdate}天了，好想作者大大...`;
-            } else if (daysSinceUpdate > 7) {
-              waitEvent = `等了${daysSinceUpdate}天啦，继续守候~`;
-            }
-
-            const newDiary = waitEvent
-              ? addMoodEntry(beast.moodDiary, {
-                  date: new Date().toISOString(),
-                  mood: moodInfo.mood,
-                  event: waitEvent,
-                  emoji: moodInfo.emoji,
-                })
-              : beast.moodDiary;
-
-            newBeasts[workId] = {
-              ...beast,
-              fedToday: false,
-              vitality: newVitality,
-              status: newStatus,
-              waitDays: daysSinceUpdate,
-              moodDiary: newDiary,
-            };
-          }
-        });
-
-        const newUrgeStates = { ...state.urgeStates };
-        Object.keys(newUrgeStates).forEach(workId => {
-          newUrgeStates[workId] = {
-            ...newUrgeStates[workId],
-            userHasUrged: false,
-          };
-        });
-
-        const updated = { beasts: newBeasts, urgeStates: newUrgeStates };
-        persist({ ...state, ...updated });
-        saveToStorage({
-          subscribedWorkIds: state.subscribedWorkIds,
-          beasts: newBeasts,
-          candies: state.candies,
-          urgeStates: newUrgeStates,
-          celebrationRecords: state.celebrationRecords,
-          collectedChapterIds: state.collectedChapterIds,
-          lastCheckDate: today,
-        });
-        return updated;
-      });
-    }
   },
 
   getEncouragementMessages: () => encouragementMessages,
+
+  getAvailableCandies: () => {
+    return getAvailableCandies(get().candies);
+  },
 }));

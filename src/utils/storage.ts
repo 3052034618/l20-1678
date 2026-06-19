@@ -7,6 +7,7 @@ export interface StorageData {
   urgeStates: Record<string, import('../types').UrgeState>;
   celebrationRecords: import('../types').CelebrationRecord[];
   collectedChapterIds: string[];
+  timeline: import('../types').TimelineEvent[];
   lastCheckDate: string;
 }
 
@@ -15,12 +16,14 @@ export const defaultStorageData: StorageData = {
   beasts: {},
   candies: {
     total: 0,
+    spent: 0,
     fromCelebration: 0,
     fromDaily: 0,
   },
   urgeStates: {},
   celebrationRecords: [],
   collectedChapterIds: [],
+  timeline: [],
   lastCheckDate: new Date().toDateString(),
 };
 
@@ -33,6 +36,12 @@ export function loadFromStorage(): StorageData {
         ...defaultStorageData,
         ...parsed,
         collectedChapterIds: parsed.collectedChapterIds || [],
+        timeline: parsed.timeline || [],
+        candies: {
+          ...defaultStorageData.candies,
+          ...(parsed.candies || {}),
+          spent: parsed.candies?.spent || 0,
+        },
       };
     }
   } catch (e) {

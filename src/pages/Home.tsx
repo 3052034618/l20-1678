@@ -1,20 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Sparkles, Heart, History } from 'lucide-react';
+import { Plus, Sparkles, Heart, ShoppingBag } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { BeastCard } from '../components/BeastCard';
+import { Timeline } from '../components/Timeline';
+import { CandyShop } from '../components/CandyShop';
+import { getAvailableCandies } from '../types';
 
 export function Home() {
-  const { works, subscribedWorkIds, beasts, checkDailyReset, candies, celebrationRecords } = useGameStore();
-  const [showHistory, setShowHistory] = useState(false);
-
-  useEffect(() => {
-    checkDailyReset();
-  }, [checkDailyReset]);
+  const { works, subscribedWorkIds, beasts, candies, celebrationRecords, isChapterCollected } = useGameStore();
+  const [shopWorkId, setShopWorkId] = useState<string | null>(null);
 
   const subscribedWorks = works.filter(w => subscribedWorkIds.includes(w.id));
-  const hasNewChapters = subscribedWorks.filter(w => w.hasNewChapter).length;
+  const hasNewChapters = subscribedWorks.filter(w => w.hasNewChapter && !isChapterCollected(w.id, w.lastChapter)).length;
   const totalFedToday = subscribedWorks.filter(w => beasts[w.id]?.fedToday).length;
+  const availableCandies = getAvailableCandies(candies);
 
   const recentCelebrations = celebrationRecords
     .slice()
@@ -98,69 +98,41 @@ export function Home() {
           </div>
         )}
 
-        {candies.total > 0 && subscribedWorks.length > 0 && (
-          <div className="mt-8 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6">
+        {availableCandies > 0 && subscribedWorks.length > 0 && (
+          <button
+            onClick={() => setShopWorkId(subscribedWorks[0]?.id)}
+            className="mt-8 w-full bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl p-6 text-left hover:shadow-md transition-shadow"
+          >
             <div className="flex items-center gap-4">
               <div className="text-4xl">🍬</div>
               <div className="flex-1">
                 <h3 className="font-bold text-gray-800 mb-1">我的糖果罐</h3>
                 <p className="text-sm text-gray-500">
-                  已经收集了 <span className="font-bold text-amber-600">{candies.total}</span> 颗糖果
+                  可用 <span className="font-bold text-amber-600">{availableCandies}</span> 颗糖果
                 </p>
                 <div className="flex items-center gap-4 mt-1 text-xs text-gray-400">
-                  <span>投喂 {candies.fromDaily} 颗</span>
-                  <span>庆祝 {candies.fromCelebration} 颗</span>
+                  <span>共获得 {candies.total} 颗</span>
+                  <span>已消费 {candies.spent} 颗</span>
                 </div>
               </div>
+              <div className="flex items-center gap-2 text-amber-600 text-sm font-medium">
+                <ShoppingBag size={18} />
+                去兑换
+              </div>
             </div>
+          </button>
+        )}
+
+        {subscribedWorks.length > 0 && (
+          <div className="mt-6">
+            <Timeline />
           </div>
         )}
 
-        {recentCelebrations.length > 0 && (
-          <div className="mt-6">
-            <button
-              onClick={() => setShowHistory(!showHistory)}
-              className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-coral-500 transition-colors mb-3"
-            >
-              <History size={16} />
-              {showHistory ? '收起庆祝记录' : '查看庆祝记录'}
-              <span className="text-xs text-gray-400">({recentCelebrations.length})</span>
-            </button>
-
-            {showHistory && (
-              <div className="bg-white/70 backdrop-blur rounded-2xl p-5">
-                <div className="space-y-3">
-                  {recentCelebrations.map(record => {
-                    const work = works.find(w => w.id === record.workId);
-                    return (
-                      <div key={record.id} className="flex items-center gap-4 p-3 bg-white/60 rounded-xl">
-                        <div className="text-2xl">{work?.cover || '📖'}</div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-700 truncate">
-                            {work?.title || '未知作品'} · {record.chapterTitle}
-                          </p>
-                          <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
-                            <span>等了 {record.waitDays} 天</span>
-                            <span>·</span>
-                            <span>🍬 {record.candiesCollected} 颗</span>
-                            <span>·</span>
-                            <span>{formatDate(record.celebratedAt)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+        {shopWorkId && (
+          <CandyShop workId={shopWorkId} onClose={() => setShopWorkId(null)} />
         )}
       </div>
     </div>
   );
-}
-
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return `${date.getMonth() + 1}月${date.getDate()}日`;
 }

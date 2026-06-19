@@ -22,7 +22,6 @@ export function Urge() {
   const [selectedMessage, setSelectedMessage] = useState('');
   const [isUrging, setIsUrging] = useState(false);
   const [urgeSuccess, setUrgeSuccess] = useState(false);
-  const [showCard, setShowCard] = useState(false);
 
   const work = works.find(w => w.id === workId);
   const beast = beasts[workId || ''];
@@ -51,11 +50,6 @@ export function Urge() {
       urgeUpdate(work.id, selectedMessage);
       setUrgeSuccess(true);
       setIsUrging(false);
-
-      const updatedUrge = useGameStore.getState().urgeStates[workId || ''];
-      if (updatedUrge?.supportCard) {
-        setShowCard(true);
-      }
     }, 600);
   };
 
@@ -63,7 +57,7 @@ export function Urge() {
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
-  const userMessage = sortedMessages.find(m => m.userName === '我');
+  const userMessage = sortedMessages.find(m => m.isUser);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-cream-50 to-peach-50 pb-8">
@@ -114,26 +108,9 @@ export function Urge() {
             <span>0</span>
             <span>目标 {urgeState.targetCount} 人</span>
           </div>
-
-          {isTargetReached && !hasCard && (
-            <div className="mt-4 p-3 bg-amber-50 rounded-xl text-center">
-              <p className="text-sm text-amber-700 font-medium">
-                🎉 目标达成！应援卡已生成~
-              </p>
-            </div>
-          )}
-
-          {isTargetReached && hasCard && !showCard && (
-            <button
-              onClick={() => setShowCard(true)}
-              className="mt-4 w-full py-3 bg-gradient-to-r from-amber-400 to-orange-400 text-white rounded-xl font-medium text-sm shadow-md hover:shadow-lg transition-all"
-            >
-              💌 查看应援卡
-            </button>
-          )}
         </div>
 
-        {showCard && hasCard && urgeState.supportCard && (
+        {hasCard && urgeState.supportCard && (
           <div className="mb-6">
             <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
               <Megaphone size={18} className="text-coral-500" />
@@ -144,14 +121,6 @@ export function Urge() {
               onShare={() => markSupportCardShared(work.id)}
               workCover={work.cover}
             />
-          </div>
-        )}
-
-        {hasCard && urgeState.supportCard && !showCard && urgeState.supportCard.shared && (
-          <div className="mb-6 p-3 bg-mint-50 rounded-xl text-center">
-            <p className="text-sm text-mint-700">
-              ✅ 应援卡已分享，感谢你为作者加油！
-            </p>
           </div>
         )}
 
@@ -248,7 +217,7 @@ export function Urge() {
                   key={msg.id}
                   className={cn(
                     'flex items-start gap-3',
-                    msg.userName === '我' && 'bg-peach-50 rounded-lg p-2 -mx-2'
+                    msg.isUser && 'bg-peach-50 rounded-lg p-2 -mx-2'
                   )}
                 >
                   <div className="w-8 h-8 rounded-full bg-peach-100 flex items-center justify-center text-lg flex-shrink-0">
@@ -258,11 +227,11 @@ export function Urge() {
                     <div className="flex items-center gap-2">
                       <p className={cn(
                         'text-sm font-medium',
-                        msg.userName === '我' ? 'text-coral-600' : 'text-gray-700'
+                        msg.isUser ? 'text-coral-600' : 'text-gray-700'
                       )}>
                         {msg.userName}
                       </p>
-                      {msg.userName === '我' && (
+                      {msg.isUser && (
                         <span className="text-xs bg-coral-100 text-coral-500 px-1.5 py-0.5 rounded-full">
                           我
                         </span>

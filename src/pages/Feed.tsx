@@ -32,7 +32,7 @@ export function Feed() {
 
     setIsFeeding(true);
     setTimeout(() => {
-      feedBeast(work.id, selectedMessage);
+      feedBeast(work.id);
       setFeedSuccess(true);
       setIsFeeding(false);
     }, 800);

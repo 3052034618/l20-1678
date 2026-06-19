@@ -27,6 +27,12 @@ export interface MoodEntry {
   emoji: string;
 }
 
+export interface BeastDecorations {
+  background: string | null;
+  toy: string | null;
+  title: string | null;
+}
+
 export interface Beast {
   id: string;
   workId: string;
@@ -41,12 +47,18 @@ export interface Beast {
   waitDays: number;
   level: BeastLevel;
   moodDiary: MoodEntry[];
+  decorations: BeastDecorations;
 }
 
 export interface Candy {
   total: number;
+  spent: number;
   fromCelebration: number;
   fromDaily: number;
+}
+
+export function getAvailableCandies(candy: Candy): number {
+  return candy.total - candy.spent;
 }
 
 export interface UrgeMessage {
@@ -55,6 +67,7 @@ export interface UrgeMessage {
   userName: string;
   avatar: string;
   message: string;
+  isUser: boolean;
   createdAt: string;
 }
 
@@ -86,6 +99,30 @@ export interface CelebrationRecord {
   waitDays: number;
   celebratedAt: string;
   candiesCollected: number;
+}
+
+export type TimelineEventType = 'feed' | 'urge' | 'share' | 'celebrate' | 'subscribe' | 'decorate';
+
+export interface TimelineEvent {
+  id: string;
+  workId: string;
+  workTitle: string;
+  workCover: string;
+  type: TimelineEventType;
+  description: string;
+  emoji: string;
+  timestamp: string;
+}
+
+export type ShopItemCategory = 'background' | 'toy' | 'title';
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  category: ShopItemCategory;
+  price: number;
+  emoji: string;
+  description: string;
 }
 
 export const MOOD_MAP: Record<BeastStatus, { mood: MoodEntry['mood']; emoji: string }> = {
@@ -124,3 +161,12 @@ export function getExpForNextLevel(currentLevel: number): number {
   if (currentLevel >= thresholds.length) return thresholds[thresholds.length - 1];
   return thresholds[currentLevel];
 }
+
+export const EVENT_EMOJI: Record<TimelineEventType, string> = {
+  feed: '💕',
+  urge: '📣',
+  share: '💌',
+  celebrate: '🎉',
+  subscribe: '🐾',
+  decorate: '🏠',
+};

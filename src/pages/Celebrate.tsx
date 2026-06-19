@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Gift, Calendar, Sparkles, History } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { BeastSvg } from '../components/BeastSvg';
-import { getExpForNextLevel } from '../types';
+import { getExpForNextLevel, getAvailableCandies } from '../types';
 
 interface FallingCandy {
   id: number;
@@ -19,7 +19,7 @@ const candyEmojis = ['🍬', '🍭', '🍫', '🍩', '🧁', '🍪', '🌈', '�
 export function Celebrate() {
   const { workId } = useParams<{ workId: string }>();
   const navigate = useNavigate();
-  const { works, beasts, collectCandy, isChapterCollected, getCelebrationHistory } = useGameStore();
+  const { works, beasts, collectCandy, isChapterCollected, getCelebrationHistory, getAvailableCandies } = useGameStore();
   const [fallingCandies, setFallingCandies] = useState<FallingCandy[]>([]);
   const [collected, setCollected] = useState(false);
   const [reward, setReward] = useState(0);
@@ -30,9 +30,10 @@ export function Celebrate() {
   const history = getCelebrationHistory(workId || '');
   const alreadyCollected = work ? isChapterCollected(work.id, work.lastChapter) : false;
 
+  const canShowCelebration = work?.hasNewChapter && !alreadyCollected;
+
   useEffect(() => {
-    const hasActiveCelebration = work?.hasNewChapter && !alreadyCollected;
-    if (!hasActiveCelebration) {
+    if (!canShowCelebration) {
       setShowContent(true);
       return;
     }
@@ -52,7 +53,7 @@ export function Celebrate() {
 
     const timer = setTimeout(() => setShowContent(true), 500);
     return () => clearTimeout(timer);
-  }, [work?.hasNewChapter, alreadyCollected]);
+  }, [canShowCelebration]);
 
   if (!work || !beast) {
     return (
@@ -66,8 +67,8 @@ export function Celebrate() {
   }
 
   const waitDays = beast.waitDays || work.daysSinceUpdate;
-  const hasActiveCelebration = work.hasNewChapter && !alreadyCollected;
-  const canCollect = hasActiveCelebration && !collected;
+  const canCollect = canShowCelebration && !collected;
+  const availableCandies = getAvailableCandies();
 
   const handleCollect = () => {
     if (collected || !canCollect) return;
@@ -83,7 +84,7 @@ export function Celebrate() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-amber-50 via-peach-50 to-coral-50 relative overflow-hidden">
-      {hasActiveCelebration && !collected && (
+      {canShowCelebration && !collected && (
         <div className="fixed inset-0 pointer-events-none overflow-hidden z-10">
           {fallingCandies.map(candy => (
             <div
@@ -110,21 +111,7 @@ export function Celebrate() {
           ← 返回
         </button>
 
-        {!hasActiveCelebration && history.length === 0 && (
-          <div className="text-center py-16">
-            <div className="text-6xl mb-4">😴</div>
-            <h2 className="text-xl font-bold text-gray-700 mb-2">还没有新章节哦</h2>
-            <p className="text-gray-500 mb-6">继续等待，小兽会陪你的~</p>
-            <button
-              onClick={() => navigate('/')}
-              className="px-6 py-3 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all"
-            >
-              返回首页
-            </button>
-          </div>
-        )}
-
-        {hasActiveCelebration && (
+        {canShowCelebration && (
           <div className={`transition-all duration-700 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             <div className="text-center mb-6">
               <div className="text-5xl mb-4 animate-bounce">🎉</div>
@@ -177,11 +164,6 @@ export function Celebrate() {
                   <p className="text-gray-700 font-medium mb-1">糖果已领取！</p>
                   <p className="text-sm text-gray-500">获得 {reward} 颗糖果 🍬 + 5 成长经验</p>
                 </div>
-              ) : alreadyCollected ? (
-                <div className="text-center">
-                  <div className="text-4xl mb-3">✅</div>
-                  <p className="text-gray-600 font-medium">这一章已经领取过了</p>
-                </div>
               ) : (
                 <button
                   onClick={handleCollect}
@@ -195,12 +177,28 @@ export function Celebrate() {
           </div>
         )}
 
-        {!hasActiveCelebration && alreadyCollected && (
-          <div className="bg-white/80 backdrop-blur rounded-3xl p-8 shadow-lg mb-6 text-center">
-            <div className="text-5xl mb-4">✅</div>
-            <h2 className="text-xl font-bold text-gray-800 mb-2">糖果已领取</h2>
-            <p className="text-gray-500 mb-1">{work.lastChapter}</p>
-            <p className="text-sm text-gray-400">这一章的糖果已经领过啦，刷新不会再出现~</p>
+        {!canShowCelebration && alreadyCollected && (
+          <div className={`transition-all duration-700 ${showContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+            <div className="bg-white/80 backdrop-blur rounded-3xl p-8 shadow-lg mb-6 text-center">
+              <div className="text-5xl mb-4">✅</div>
+              <h2 className="text-xl font-bold text-gray-800 mb-2">糖果已领取</h2>
+              <p className="text-gray-500 mb-1">{work.lastChapter}</p>
+              <p className="text-sm text-gray-400">这一章的糖果已经领过啦，刷新不会再出现~</p>
+            </div>
+          </div>
+        )}
+
+        {!canShowCelebration && !alreadyCollected && history.length === 0 && (
+          <div className="text-center py-16">
+            <div className="text-6xl mb-4">😴</div>
+            <h2 className="text-xl font-bold text-gray-700 mb-2">还没有新章节哦</h2>
+            <p className="text-gray-500 mb-6">继续等待，小兽会陪你的~</p>
+            <button
+              onClick={() => navigate('/')}
+              className="px-6 py-3 bg-gradient-to-r from-coral-500 to-peach-500 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all"
+            >
+              返回首页
+            </button>
           </div>
         )}
 
@@ -232,7 +230,7 @@ export function Celebrate() {
           </div>
         )}
 
-        {(collected || !hasActiveCelebration) && (
+        {(collected || !canShowCelebration) && (
           <Link
             to="/"
             className="block mt-6 w-full py-4 bg-white text-gray-700 rounded-2xl font-medium text-center shadow-sm hover:shadow-md transition-all"
