@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Megaphone, Send, Users } from 'lucide-react';
+import { ArrowLeft, Megaphone, Send, Users, MessageCircle } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { BeastSvg } from '../components/BeastSvg';
+import { SupportCardView } from '../components/SupportCard';
 import { cn } from '../lib/utils';
 
 const urgeMessageOptions = [
@@ -17,10 +18,11 @@ const urgeMessageOptions = [
 export function Urge() {
   const { workId } = useParams<{ workId: string }>();
   const navigate = useNavigate();
-  const { works, beasts, urgeStates, urgeUpdate } = useGameStore();
+  const { works, beasts, urgeStates, urgeUpdate, markSupportCardShared } = useGameStore();
   const [selectedMessage, setSelectedMessage] = useState('');
   const [isUrging, setIsUrging] = useState(false);
   const [urgeSuccess, setUrgeSuccess] = useState(false);
+  const [showCard, setShowCard] = useState(false);
 
   const work = works.find(w => w.id === workId);
   const beast = beasts[workId || ''];
@@ -38,7 +40,8 @@ export function Urge() {
   }
 
   const progress = Math.min(100, (urgeState.currentCount / urgeState.targetCount) * 100);
-  const isNearTarget = urgeState.currentCount >= urgeState.targetCount;
+  const isTargetReached = urgeState.currentCount >= urgeState.targetCount;
+  const hasCard = !!urgeState.supportCard;
 
   const handleUrge = () => {
     if (!selectedMessage || urgeState.userHasUrged || isUrging) return;
@@ -48,12 +51,19 @@ export function Urge() {
       urgeUpdate(work.id, selectedMessage);
       setUrgeSuccess(true);
       setIsUrging(false);
+
+      const updatedUrge = useGameStore.getState().urgeStates[workId || ''];
+      if (updatedUrge?.supportCard) {
+        setShowCard(true);
+      }
     }, 600);
   };
 
   const sortedMessages = [...urgeState.messages].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
+
+  const userMessage = sortedMessages.find(m => m.userName === '我');
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-cream-50 to-peach-50 pb-8">
@@ -68,7 +78,7 @@ export function Urge() {
 
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold text-gray-800 mb-2">集体催更</h1>
-          <p className="text-gray-500">{work.title}</p>
+          <p className="text-gray-500">{work.title} · {work.author}</p>
         </div>
 
         <div className="bg-white rounded-3xl p-6 shadow-sm mb-6">
@@ -81,16 +91,21 @@ export function Urge() {
             <span className="text-sm text-gray-600">
               已有 <span className="font-bold text-coral-500">{urgeState.currentCount}</span> 人催更
             </span>
+            {urgeState.userHasUrged && (
+              <span className="text-xs bg-coral-50 text-coral-500 px-2 py-0.5 rounded-full ml-1">
+                已参与
+              </span>
+            )}
           </div>
 
           <div className="relative h-4 bg-gray-100 rounded-full overflow-hidden mb-2">
             <div
               className={cn(
-            'h-full rounded-full transition-all duration-1000 ease-out',
-            isNearTarget
-              ? 'bg-gradient-to-r from-amber-400 to-orange-500'
-              : 'bg-gradient-to-r from-coral-400 to-peach-500'
-            )}
+                'h-full rounded-full transition-all duration-1000 ease-out',
+                isTargetReached
+                  ? 'bg-gradient-to-r from-amber-400 to-orange-500'
+                  : 'bg-gradient-to-r from-coral-400 to-peach-500'
+              )}
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -100,34 +115,86 @@ export function Urge() {
             <span>目标 {urgeState.targetCount} 人</span>
           </div>
 
-          {isNearTarget && (
+          {isTargetReached && !hasCard && (
             <div className="mt-4 p-3 bg-amber-50 rounded-xl text-center">
               <p className="text-sm text-amber-700 font-medium">
-                🎉 快达成目标啦！可以生成应援卡分享咯~
+                🎉 目标达成！应援卡已生成~
               </p>
             </div>
           )}
+
+          {isTargetReached && hasCard && !showCard && (
+            <button
+              onClick={() => setShowCard(true)}
+              className="mt-4 w-full py-3 bg-gradient-to-r from-amber-400 to-orange-400 text-white rounded-xl font-medium text-sm shadow-md hover:shadow-lg transition-all"
+            >
+              💌 查看应援卡
+            </button>
+          )}
         </div>
+
+        {showCard && hasCard && urgeState.supportCard && (
+          <div className="mb-6">
+            <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <Megaphone size={18} className="text-coral-500" />
+              应援卡
+            </h3>
+            <SupportCardView
+              card={urgeState.supportCard}
+              onShare={() => markSupportCardShared(work.id)}
+              workCover={work.cover}
+            />
+          </div>
+        )}
+
+        {hasCard && urgeState.supportCard && !showCard && urgeState.supportCard.shared && (
+          <div className="mb-6 p-3 bg-mint-50 rounded-xl text-center">
+            <p className="text-sm text-mint-700">
+              ✅ 应援卡已分享，感谢你为作者加油！
+            </p>
+          </div>
+        )}
 
         <div className="bg-white rounded-3xl p-6 shadow-sm mb-6">
           <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <Megaphone size={18} className="text-coral-500" />
-            留言墙
+            <MessageCircle size={18} className="text-coral-500" />
+            发送催更
           </h3>
 
           {urgeSuccess ? (
-            <div className="text-center py-6">
+            <div className="text-center py-4">
               <div className="text-4xl mb-3">✨</div>
               <p className="text-gray-700 font-medium mb-1">催更成功！</p>
-              <p className="text-sm text-gray-500">你的留言已经送上~</p>
+              <p className="text-sm text-gray-500 mb-2">你的留言已加入应援卡候选</p>
+              {userMessage && (
+                <div className="bg-peach-50 rounded-xl p-3 mt-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">{userMessage.avatar}</span>
+                    <span className="text-sm font-medium text-coral-600">我的留言</span>
+                  </div>
+                  <p className="text-sm text-gray-600">{userMessage.message}</p>
+                </div>
+              )}
+              <p className="text-xs text-gray-400 mt-3">明天可以继续催更哦~</p>
             </div>
           ) : urgeState.userHasUrged ? (
-            <div className="text-center py-6">
-              <p className="text-gray-500 text-sm">今天已经催过啦，明天再来吧~</p>
+            <div className="text-center py-4">
+              <div className="text-4xl mb-3">😊</div>
+              <p className="text-gray-600 font-medium mb-1">今天已经催过啦</p>
+              <p className="text-sm text-gray-400">明天再来为作者加油吧~</p>
+              {userMessage && (
+                <div className="bg-gray-50 rounded-xl p-3 mt-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">{userMessage.avatar}</span>
+                    <span className="text-sm font-medium text-gray-500">今天我的留言</span>
+                  </div>
+                  <p className="text-sm text-gray-600">{userMessage.message}</p>
+                </div>
+              )}
             </div>
           ) : (
             <>
-              <p className="text-sm text-gray-500 mb-4">选一句温和的催更留言吧</p>
+              <p className="text-sm text-gray-500 mb-4">选一句温和的催更留言吧（每天只能催一次）</p>
 
               <div className="space-y-2 mb-6">
                 {urgeMessageOptions.map((msg, index) => (
@@ -171,21 +238,42 @@ export function Urge() {
 
         {sortedMessages.length > 0 && (
           <div className="bg-white/60 rounded-2xl p-4">
-          <h4 className="text-sm font-medium text-gray-700 mb-3">最新留言</h4>
-          <div className="space-y-3">
-            {sortedMessages.slice(0, 5).map(msg => (
-              <div key={msg.id} className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-peach-100 flex items-center justify-center text-lg flex-shrink-0">
-                  {msg.avatar}
+            <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <Users size={14} className="text-gray-400" />
+              粉丝留言池 ({sortedMessages.length})
+            </h4>
+            <div className="space-y-3 max-h-64 overflow-y-auto">
+              {sortedMessages.map(msg => (
+                <div
+                  key={msg.id}
+                  className={cn(
+                    'flex items-start gap-3',
+                    msg.userName === '我' && 'bg-peach-50 rounded-lg p-2 -mx-2'
+                  )}
+                >
+                  <div className="w-8 h-8 rounded-full bg-peach-100 flex items-center justify-center text-lg flex-shrink-0">
+                    {msg.avatar}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className={cn(
+                        'text-sm font-medium',
+                        msg.userName === '我' ? 'text-coral-600' : 'text-gray-700'
+                      )}>
+                        {msg.userName}
+                      </p>
+                      {msg.userName === '我' && (
+                        <span className="text-xs bg-coral-100 text-coral-500 px-1.5 py-0.5 rounded-full">
+                          我
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500">{msg.message}</p>
+                  </div>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-700">{msg.userName}</p>
-                  <p className="text-sm text-gray-500">{msg.message}</p>
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
         )}
       </div>
     </div>

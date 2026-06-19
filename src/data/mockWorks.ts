@@ -118,72 +118,134 @@ export const encouragementMessages = [
   '太太的画工/文笔越来越好了！',
 ];
 
-export const urgeMessages: Record<string, UrgeMessage[]> = {
-  'work-1': [
-    { id: 'u1', workId: 'work-1', userName: '星星爱好者', avatar: '⭐', message: '等不及想看后续了！', createdAt: new Date(Date.now() - 3600000).toISOString() },
-    { id: 'u2', workId: 'work-1', userName: '银河漫游', avatar: '🚀', message: '太太加油！期待更新~', createdAt: new Date(Date.now() - 7200000).toISOString() },
-  ],
-  'work-2': [
-    { id: 'u3', workId: 'work-2', userName: '山中客', avatar: '🍃', message: '等了好久终于等到了！', createdAt: new Date(Date.now() - 1800000).toISOString() },
-  ],
-};
+export const urgeMessageOptions = [
+  '太太加油！我们都在等你~',
+  '蹲一个更新，不急慢慢来',
+  '好期待下一章！',
+  '每天都来刷新，希望有惊喜',
+  '辛苦了，注意身体哦',
+  '催一下下，轻轻的那种~',
+];
+
+const fanNames = [
+  { name: '星星爱好者', avatar: '⭐' },
+  { name: '银河漫游', avatar: '🚀' },
+  { name: '山中客', avatar: '🍃' },
+  { name: '猫猫党', avatar: '🐱' },
+  { name: '书虫一号', avatar: '🐛' },
+  { name: '夜读侠', avatar: '🦉' },
+  { name: '甜食控', avatar: '🍩' },
+  { name: '画中仙', avatar: '🎨' },
+  { name: '追光者', avatar: '🌟' },
+  { name: '暖阳', avatar: '☀️' },
+  { name: '小鱼干', avatar: '�' },
+  { name: '蜜桃酱', avatar: '🍑' },
+];
+
+const fanMessages = [
+  '等不及想看后续了！',
+  '太太加油！期待更新~',
+  '等了好久终于等到了！',
+  '每天必刷的更新页面！',
+  '求更新！跪求！',
+  '好想看下一章啊~',
+  '追了两年的老粉来催更了',
+  '不更新就...就继续等！',
+  '催更不急，注意身体',
+  '等着你的好故事呢！',
+  '太太快更新！想你了~',
+  '沙发！一定要坐上！',
+];
+
+function generateFanMessages(workId: string, count: number): UrgeMessage[] {
+  const messages: UrgeMessage[] = [];
+  for (let i = 0; i < count; i++) {
+    const fan = fanNames[Math.floor(Math.random() * fanNames.length)];
+    const msg = fanMessages[Math.floor(Math.random() * fanMessages.length)];
+    messages.push({
+      id: `fan-${workId}-${i}`,
+      workId,
+      userName: fan.name,
+      avatar: fan.avatar,
+      message: msg,
+      createdAt: new Date(Date.now() - Math.random() * 48 * 60 * 60 * 1000).toISOString(),
+    });
+  }
+  return messages.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+export const supportCardSlogans = [
+  '每一份等待，都是最好的陪伴',
+  '慢慢来，我们一直都在',
+  '好故事值得等待，好作者值得守护',
+  '你的读者，永远温柔以待',
+  '并肩守候，不负期待',
+];
 
 export const urgeStates: Record<string, UrgeState> = {
   'work-1': {
     workId: 'work-1',
-    currentCount: 128,
+    currentCount: 432,
     targetCount: 500,
-    messages: urgeMessages['work-1'] || [],
+    messages: generateFanMessages('work-1', 8),
     userHasUrged: false,
+    supportCard: null,
   },
   'work-2': {
     workId: 'work-2',
-    currentCount: 356,
+    currentCount: 489,
     targetCount: 500,
-    messages: urgeMessages['work-2'] || [],
+    messages: generateFanMessages('work-2', 6),
     userHasUrged: false,
+    supportCard: null,
   },
   'work-3': {
     workId: 'work-3',
-    currentCount: 89,
+    currentCount: 189,
     targetCount: 300,
-    messages: [],
+    messages: generateFanMessages('work-3', 5),
     userHasUrged: false,
+    supportCard: null,
   },
   'work-4': {
     workId: 'work-4',
-    currentCount: 420,
+    currentCount: 620,
     targetCount: 800,
-    messages: [],
+    messages: generateFanMessages('work-4', 10),
     userHasUrged: false,
+    supportCard: null,
   },
   'work-5': {
     workId: 'work-5',
-    currentCount: 267,
+    currentCount: 345,
     targetCount: 400,
-    messages: [],
+    messages: generateFanMessages('work-5', 4),
     userHasUrged: false,
+    supportCard: null,
   },
   'work-6': {
     workId: 'work-6',
-    currentCount: 512,
+    currentCount: 560,
     targetCount: 600,
-    messages: [],
+    messages: generateFanMessages('work-6', 7),
     userHasUrged: false,
+    supportCard: null,
   },
   'work-7': {
     workId: 'work-7',
-    currentCount: 198,
+    currentCount: 298,
     targetCount: 500,
-    messages: [],
+    messages: generateFanMessages('work-7', 9),
     userHasUrged: false,
+    supportCard: null,
   },
   'work-8': {
     workId: 'work-8',
-    currentCount: 75,
+    currentCount: 175,
     targetCount: 300,
-    messages: [],
+    messages: generateFanMessages('work-8', 3),
     userHasUrged: false,
+    supportCard: null,
   },
 };
 
@@ -197,6 +259,3 @@ export const beastColors = [
   '#87CEEB',
   '#F0E68C',
 ];
-
-export const beastNamePrefixes = ['小', '奶', '糖', '软', '胖', '圆', '毛', '绒'];
-export const beastNameSuffixes = ['团', '球', '宝', '兽', '仔', '酱', '喵', '汪'];

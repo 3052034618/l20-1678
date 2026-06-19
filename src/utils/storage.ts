@@ -6,6 +6,7 @@ export interface StorageData {
   candies: import('../types').Candy;
   urgeStates: Record<string, import('../types').UrgeState>;
   celebrationRecords: import('../types').CelebrationRecord[];
+  collectedChapterIds: string[];
   lastCheckDate: string;
 }
 
@@ -19,6 +20,7 @@ export const defaultStorageData: StorageData = {
   },
   urgeStates: {},
   celebrationRecords: [],
+  collectedChapterIds: [],
   lastCheckDate: new Date().toDateString(),
 };
 
@@ -26,7 +28,12 @@ export function loadFromStorage(): StorageData {
   try {
     const data = localStorage.getItem(STORAGE_KEY);
     if (data) {
-      return JSON.parse(data);
+      const parsed = JSON.parse(data);
+      return {
+        ...defaultStorageData,
+        ...parsed,
+        collectedChapterIds: parsed.collectedChapterIds || [],
+      };
     }
   } catch (e) {
     console.error('Failed to load from storage', e);

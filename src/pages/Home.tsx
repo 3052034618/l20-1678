@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Sparkles, Heart } from 'lucide-react';
+import { Plus, Sparkles, Heart, History } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { BeastCard } from '../components/BeastCard';
 
 export function Home() {
-  const { works, subscribedWorkIds, beasts, checkDailyReset, candies } = useGameStore();
+  const { works, subscribedWorkIds, beasts, checkDailyReset, candies, celebrationRecords } = useGameStore();
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     checkDailyReset();
@@ -14,6 +15,11 @@ export function Home() {
   const subscribedWorks = works.filter(w => subscribedWorkIds.includes(w.id));
   const hasNewChapters = subscribedWorks.filter(w => w.hasNewChapter).length;
   const totalFedToday = subscribedWorks.filter(w => beasts[w.id]?.fedToday).length;
+
+  const recentCelebrations = celebrationRecords
+    .slice()
+    .sort((a, b) => new Date(b.celebratedAt).getTime() - new Date(a.celebratedAt).getTime())
+    .slice(0, 5);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-cream-50 to-peach-50 pb-24">
@@ -101,11 +107,60 @@ export function Home() {
                 <p className="text-sm text-gray-500">
                   已经收集了 <span className="font-bold text-amber-600">{candies.total}</span> 颗糖果
                 </p>
+                <div className="flex items-center gap-4 mt-1 text-xs text-gray-400">
+                  <span>投喂 {candies.fromDaily} 颗</span>
+                  <span>庆祝 {candies.fromCelebration} 颗</span>
+                </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {recentCelebrations.length > 0 && (
+          <div className="mt-6">
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-coral-500 transition-colors mb-3"
+            >
+              <History size={16} />
+              {showHistory ? '收起庆祝记录' : '查看庆祝记录'}
+              <span className="text-xs text-gray-400">({recentCelebrations.length})</span>
+            </button>
+
+            {showHistory && (
+              <div className="bg-white/70 backdrop-blur rounded-2xl p-5">
+                <div className="space-y-3">
+                  {recentCelebrations.map(record => {
+                    const work = works.find(w => w.id === record.workId);
+                    return (
+                      <div key={record.id} className="flex items-center gap-4 p-3 bg-white/60 rounded-xl">
+                        <div className="text-2xl">{work?.cover || '📖'}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-700 truncate">
+                            {work?.title || '未知作品'} · {record.chapterTitle}
+                          </p>
+                          <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                            <span>等了 {record.waitDays} 天</span>
+                            <span>·</span>
+                            <span>🍬 {record.candiesCollected} 颗</span>
+                            <span>·</span>
+                            <span>{formatDate(record.celebratedAt)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
     </div>
   );
+}
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
 }
