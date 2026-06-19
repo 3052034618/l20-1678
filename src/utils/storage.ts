@@ -32,9 +32,18 @@ export function loadFromStorage(): StorageData {
     const data = localStorage.getItem(STORAGE_KEY);
     if (data) {
       const parsed = JSON.parse(data);
+      const beasts = parsed.beasts || {};
+      Object.keys(beasts).forEach(key => {
+        const b = beasts[key];
+        b.ownedDecorations = b.ownedDecorations || [];
+        b.totalUrgeCount = b.totalUrgeCount || 0;
+        b.totalCelebrateCount = b.totalCelebrateCount || 0;
+        b.bondStartDate = b.bondStartDate || new Date().toISOString();
+      });
       return {
         ...defaultStorageData,
         ...parsed,
+        beasts,
         collectedChapterIds: parsed.collectedChapterIds || [],
         timeline: parsed.timeline || [],
         candies: {

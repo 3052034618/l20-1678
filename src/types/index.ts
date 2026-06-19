@@ -48,6 +48,10 @@ export interface Beast {
   level: BeastLevel;
   moodDiary: MoodEntry[];
   decorations: BeastDecorations;
+  ownedDecorations: string[];
+  totalUrgeCount: number;
+  totalCelebrateCount: number;
+  bondStartDate: string;
 }
 
 export interface Candy {
@@ -170,3 +174,55 @@ export const EVENT_EMOJI: Record<TimelineEventType, string> = {
   subscribe: '🐾',
   decorate: '🏠',
 };
+
+export interface BeastDialogue {
+  id: string;
+  condition: 'level' | 'consecutive' | 'urge' | 'celebrate' | 'decorate' | 'fed';
+  threshold: number;
+  text: string;
+}
+
+export const BEAST_DIALOGUES: BeastDialogue[] = [
+  { id: 'd1', condition: 'level', threshold: 1, text: '你好呀！以后请多关照啦~' },
+  { id: 'd2', condition: 'fed', threshold: 1, text: '第一次被投喂，好温暖！' },
+  { id: 'd3', condition: 'consecutive', threshold: 3, text: '连续三天都来看我，好开心呀~' },
+  { id: 'd4', condition: 'urge', threshold: 1, text: '原来你在帮我催更呀，谢谢！' },
+  { id: 'd5', condition: 'level', threshold: 2, text: '我们已经不是陌生人了呢！' },
+  { id: 'd6', condition: 'consecutive', threshold: 7, text: '一周都没落下！你是最棒的陪伴者~' },
+  { id: 'd7', condition: 'celebrate', threshold: 1, text: '等到了！一起庆祝吧！🎉' },
+  { id: 'd8', condition: 'decorate', threshold: 1, text: '小窝变漂亮了！你有心啦~' },
+  { id: 'd9', condition: 'level', threshold: 3, text: '和你在一起的日子，每天都值得期待！' },
+  { id: 'd10', condition: 'consecutive', threshold: 14, text: '两周了...你是我的超级守护者！' },
+  { id: 'd11', condition: 'celebrate', threshold: 3, text: '已经是第三次庆祝新章了！我们的默契越来越好了~' },
+  { id: 'd12', condition: 'level', threshold: 4, text: '不管等多久，有你陪着就不孤单。' },
+  { id: 'd13', condition: 'consecutive', threshold: 30, text: '一个月！你是我最重要的朋友！' },
+  { id: 'd14', condition: 'urge', threshold: 5, text: '催更第5次了！你是催更小能手~' },
+  { id: 'd15', condition: 'level', threshold: 5, text: '我们已经是灵魂羁绊了，永远陪着你！💖' },
+];
+
+export interface BondStats {
+  companionshipDays: number;
+  consecutiveFedDays: number;
+  totalFedDays: number;
+  totalUrgeCount: number;
+  totalCelebrateCount: number;
+  ownedDecoCount: number;
+  level: number;
+  levelTitle: string;
+  unlockedDialogues: BeastDialogue[];
+  nextDialogueHint: string | null;
+}
+
+export interface MonthlySummary {
+  year: number;
+  month: number;
+  feedCount: number;
+  urgeCount: number;
+  shareCount: number;
+  celebrateCount: number;
+  decorateCount: number;
+  totalCandyEarned: number;
+  topWorkTitle: string;
+  topWorkCover: string;
+  consecutiveRecord: number;
+}

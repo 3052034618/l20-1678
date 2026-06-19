@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { Work, Beast, BeastStatus, Candy, UrgeState, UrgeMessage, CelebrationRecord, SupportCard, MoodEntry, TimelineEvent, TimelineEventType, ShopItem } from '../types';
-import { MOOD_MAP, getLevelFromExp, getAvailableCandies } from '../types';
+import type { Work, Beast, BeastStatus, Candy, UrgeState, UrgeMessage, CelebrationRecord, SupportCard, MoodEntry, TimelineEvent, TimelineEventType, ShopItem, BondStats, MonthlySummary } from '../types';
+import { MOOD_MAP, getLevelFromExp, getAvailableCandies, BEAST_DIALOGUES } from '../types';
 import { mockWorks, urgeStates as mockUrgeStates, beastColors, encouragementMessages, supportCardSlogans, shopItems } from '../data/mockWorks';
 import { loadFromStorage, saveToStorage, isSameDay, getDaysSince, generateBeastName } from '../utils/storage';
 
@@ -23,10 +23,15 @@ interface GameState {
   collectCandy: (workId: string) => void;
   isChapterCollected: (workId: string, chapterTitle: string) => boolean;
   purchaseShopItem: (workId: string, itemId: string) => boolean;
+  equipDecoration: (workId: string, itemId: string) => void;
+  resetDecorations: (workId: string) => void;
   getBeastForWork: (workId: string) => Beast | undefined;
   getUrgeStateForWork: (workId: string) => UrgeState | undefined;
   getCelebrationHistory: (workId: string) => CelebrationRecord[];
   getTimelineForDay: (dateStr: string) => TimelineEvent[];
+  getTimelineForWork: (workId: string) => TimelineEvent[];
+  getBondProfile: (workId: string) => BondStats | null;
+  getMonthlySummary: (year: number, month: number, workId?: string) => MonthlySummary | null;
   checkDailyReset: () => void;
   getEncouragementMessages: () => string[];
   getAvailableCandies: () => number;
@@ -110,6 +115,10 @@ function createBeast(work: Work): Beast {
       emoji: '🐾',
     }],
     decorations: { background: null, toy: null, title: null },
+    ownedDecorations: [],
+    totalUrgeCount: 0,
+    totalCelebrateCount: 0,
+    bondStartDate: new Date().toISOString(),
   };
 }
 
@@ -123,6 +132,10 @@ Object.keys(storageData.beasts).forEach(key => {
     level: b.level || getLevelFromExp(b.totalFedDays * 2),
     moodDiary: b.moodDiary || [],
     decorations: b.decorations || { background: null, toy: null, title: null },
+    ownedDecorations: b.ownedDecorations || [],
+    totalUrgeCount: b.totalUrgeCount || 0,
+    totalCelebrateCount: b.totalCelebrateCount || 0,
+    bondStartDate: b.bondStartDate || new Date().toISOString(),
   };
 });
 
@@ -163,6 +176,36 @@ function runDailyResetOnLoad() {
 }
 
 runDailyResetOnLoad();
+
+function getUnlockedDialogues(beast: Beast): typeof BEAST_DIALOGUES {
+  return BEAST_DIALOGUES.filter(d => {
+    switch (d.condition) {
+      case 'level': return beast.level.level >= d.threshold;
+      case 'consecutive': return beast.consecutiveFedDays >= d.threshold;
+      case 'urge': return beast.totalUrgeCount >= d.threshold;
+      case 'celebrate': return beast.totalCelebrateCount >= d.threshold;
+      case 'decorate': return beast.ownedDecorations.length >= d.threshold;
+      case 'fed': return beast.totalFedDays >= d.threshold;
+      default: return false;
+    }
+  });
+}
+
+function getNextDialogueHint(beast: Beast): string | null {
+  const unlocked = getUnlockedDialogues(beast);
+  const unlockedIds = new Set(unlocked.map(d => d.id));
+  const next = BEAST_DIALOGUES.find(d => !unlockedIds.has(d.id));
+  if (!next) return null;
+  const labels: Record<string, string> = {
+    level: `等级达到 ${next.threshold}`,
+    consecutive: `连续投喂 ${next.threshold} 天`,
+    urge: `催更 ${next.threshold} 次`,
+    celebrate: `庆祝新章 ${next.threshold} 次`,
+    decorate: `拥有 ${next.threshold} 件装饰`,
+    fed: `累计投喂 ${next.threshold} 天`,
+  };
+  return `解锁条件：${labels[next.condition] || ''}`;
+}
 
 export const useGameStore = create<GameState>((set, get) => ({
   works: mockWorks,
@@ -334,6 +377,14 @@ export const useGameStore = create<GameState>((set, get) => ({
           createdAt: new Date().toISOString(),
           shared: false,
         };
+      } else if (urgeState.supportCard) {
+        const allMessages = [...urgeState.messages, newMessage];
+        const selectedMsgs = buildSupportCardMessages(allMessages);
+        newSupportCard = {
+          ...urgeState.supportCard,
+          currentCount: newCurrentCount,
+          selectedMessages: selectedMsgs,
+        };
       }
 
       const newUrgeState: UrgeState = {
@@ -353,6 +404,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         newBeasts[workId] = {
           ...beast,
           level: getLevelFromExp(newExp),
+          totalUrgeCount: beast.totalUrgeCount + 1,
           moodDiary: addMoodEntry(beast.moodDiary, {
             date: new Date().toISOString(),
             mood: 'content',
@@ -460,6 +512,7 @@ export const useGameStore = create<GameState>((set, get) => ({
           status: 'energetic' as BeastStatus,
           waitDays: 0,
           level: getLevelFromExp(newExp),
+          totalCelebrateCount: newBeasts[workId].totalCelebrateCount + 1,
           moodDiary: addMoodEntry(newBeasts[workId].moodDiary, {
             date: new Date().toISOString(),
             mood: 'ecstatic',
@@ -509,27 +562,32 @@ export const useGameStore = create<GameState>((set, get) => ({
     const item = shopItems.find(i => i.id === itemId);
     if (!item) return false;
 
-    const available = getAvailableCandies(get().candies);
-    if (available < item.price) return false;
-
     const beast = get().beasts[workId];
     if (!beast) return false;
 
-    const currentDeco = beast.decorations[item.category];
-    if (currentDeco === itemId) return false;
+    if (beast.ownedDecorations.includes(itemId)) {
+      return false;
+    }
+
+    const available = getAvailableCandies(get().candies);
+    if (available < item.price) return false;
 
     let success = false;
     set(state => {
       const b = state.beasts[workId];
       if (!b) return state;
 
+      if (b.ownedDecorations.includes(itemId)) return state;
+
       const avail = getAvailableCandies(state.candies);
       if (avail < item.price) return state;
 
       const newDecorations = { ...b.decorations, [item.category]: itemId };
+      const newOwnedDecorations = [...b.ownedDecorations, itemId];
       const newBeast: Beast = {
         ...b,
         decorations: newDecorations,
+        ownedDecorations: newOwnedDecorations,
         moodDiary: addMoodEntry(b.moodDiary, {
           date: new Date().toISOString(),
           mood: 'ecstatic',
@@ -565,6 +623,46 @@ export const useGameStore = create<GameState>((set, get) => ({
     return success;
   },
 
+  equipDecoration: (workId: string, itemId: string) => {
+    set(state => {
+      const beast = state.beasts[workId];
+      if (!beast) return state;
+
+      const item = shopItems.find(i => i.id === itemId);
+      if (!item) return state;
+
+      if (!beast.ownedDecorations.includes(itemId)) return state;
+
+      const newDecorations = { ...beast.decorations, [item.category]: itemId };
+      const newBeast: Beast = {
+        ...beast,
+        decorations: newDecorations,
+      };
+
+      const newBeasts = { ...state.beasts, [workId]: newBeast };
+      const updated = { beasts: newBeasts };
+      persist({ ...state, ...updated });
+      return updated;
+    });
+  },
+
+  resetDecorations: (workId: string) => {
+    set(state => {
+      const beast = state.beasts[workId];
+      if (!beast) return state;
+
+      const newBeast: Beast = {
+        ...beast,
+        decorations: { background: null, toy: null, title: null },
+      };
+
+      const newBeasts = { ...state.beasts, [workId]: newBeast };
+      const updated = { beasts: newBeasts };
+      persist({ ...state, ...updated });
+      return updated;
+    });
+  },
+
   getBeastForWork: (workId: string) => {
     return get().beasts[workId];
   },
@@ -585,6 +683,85 @@ export const useGameStore = create<GameState>((set, get) => ({
         eDate.getMonth() === date.getMonth() &&
         eDate.getDate() === date.getDate();
     });
+  },
+
+  getTimelineForWork: (workId: string) => {
+    return get().timeline.filter(e => e.workId === workId);
+  },
+
+  getBondProfile: (workId: string) => {
+    const beast = get().beasts[workId];
+    if (!beast) return null;
+
+    const bondStart = new Date(beast.bondStartDate);
+    const now = new Date();
+    const companionshipDays = Math.max(1, Math.floor((now.getTime() - bondStart.getTime()) / (1000 * 60 * 60 * 24)));
+
+    return {
+      companionshipDays,
+      consecutiveFedDays: beast.consecutiveFedDays,
+      totalFedDays: beast.totalFedDays,
+      totalUrgeCount: beast.totalUrgeCount,
+      totalCelebrateCount: beast.totalCelebrateCount,
+      ownedDecoCount: beast.ownedDecorations.length,
+      level: beast.level.level,
+      levelTitle: beast.level.title,
+      unlockedDialogues: getUnlockedDialogues(beast),
+      nextDialogueHint: getNextDialogueHint(beast),
+    };
+  },
+
+  getMonthlySummary: (year: number, month: number, workId?: string) => {
+    const state = get();
+    const monthEvents = state.timeline.filter(e => {
+      const d = new Date(e.timestamp);
+      if (d.getFullYear() !== year || d.getMonth() !== month) return false;
+      if (workId && e.workId !== workId) return false;
+      return true;
+    });
+
+    if (monthEvents.length === 0) return null;
+
+    const feedCount = monthEvents.filter(e => e.type === 'feed').length;
+    const urgeCount = monthEvents.filter(e => e.type === 'urge').length;
+    const shareCount = monthEvents.filter(e => e.type === 'share').length;
+    const celebrateCount = monthEvents.filter(e => e.type === 'celebrate').length;
+    const decorateCount = monthEvents.filter(e => e.type === 'decorate').length;
+
+    const candyFromDaily = feedCount;
+    const celebrateEvents = state.celebrationRecords.filter(r => {
+      const d = new Date(r.celebratedAt);
+      if (d.getFullYear() !== year || d.getMonth() !== month) return false;
+      if (workId && r.workId !== workId) return false;
+      return true;
+    });
+    const totalCandyEarned = candyFromDaily + celebrateEvents.reduce((s, r) => s + r.candiesCollected, 0);
+
+    const workCounts: Record<string, number> = {};
+    monthEvents.forEach(e => {
+      workCounts[e.workId] = (workCounts[e.workId] || 0) + 1;
+    });
+    const topWorkId = Object.entries(workCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+    const topWork = state.works.find(w => w.id === topWorkId);
+
+    const relevantBeasts = workId
+      ? [state.beasts[workId]].filter(Boolean)
+      : Object.values(state.beasts);
+    const consecutiveRecord = Math.max(...relevantBeasts.map(b => b?.consecutiveFedDays || 0), 0);
+
+    return {
+      year,
+      month,
+      feedCount,
+      urgeCount,
+      shareCount,
+      celebrateCount,
+      decorateCount,
+      totalCandyEarned,
+      topWorkTitle: topWork?.title || '',
+      topWorkCover: topWork?.cover || '📖',
+      consecutiveRecord,
+    };
   },
 
   checkDailyReset: () => {

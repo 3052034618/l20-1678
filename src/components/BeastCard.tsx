@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, Megaphone, Clock, Star, BookHeart, ShoppingBag } from 'lucide-react';
+import { Heart, Megaphone, Clock, Star, BookHeart, ShoppingBag, UserCircle } from 'lucide-react';
 import { BeastSvg } from './BeastSvg';
 import { MoodDiary } from './MoodDiary';
 import { CandyShop } from './CandyShop';
+import { BondProfile } from './BondProfile';
 import type { Beast, Work } from '../types';
 import { getExpForNextLevel, getAvailableCandies } from '../types';
 import { cn } from '../lib/utils';
@@ -37,11 +38,13 @@ const toyEmoji: Record<string, string> = {
   'toy-lantern': '🏮',
 };
 
+type Panel = 'none' | 'diary' | 'bond';
+
 export function BeastCard({ work, beast, className }: BeastCardProps) {
   const statusInfo = statusLabels[beast.status];
-  const [showDiary, setShowDiary] = useState(false);
+  const [activePanel, setActivePanel] = useState<Panel>('none');
   const [showShop, setShowShop] = useState(false);
-  const { isChapterCollected } = useGameStore();
+  const { isChapterCollected, getBondProfile } = useGameStore();
 
   const expForNext = getExpForNextLevel(beast.level.level);
   const expProgress = beast.level.level >= 5 ? 100 : Math.min(100, (beast.level.exp / expForNext) * 100);
@@ -50,6 +53,12 @@ export function BeastCard({ work, beast, className }: BeastCardProps) {
 
   const decos = beast.decorations;
   const hasDecos = decos.background || decos.toy || decos.title;
+
+  const bond = getBondProfile(work.id);
+
+  const togglePanel = (panel: Panel) => {
+    setActivePanel(prev => prev === panel ? 'none' : panel);
+  };
 
   return (
     <>
@@ -155,10 +164,19 @@ export function BeastCard({ work, beast, className }: BeastCardProps) {
             <ShoppingBag size={16} />
           </button>
           <button
-            onClick={() => setShowDiary(!showDiary)}
+            onClick={() => togglePanel('bond')}
             className={cn(
               'flex items-center justify-center py-2 px-3 rounded-xl text-sm font-medium transition-colors',
-              showDiary ? 'bg-coral-50 text-coral-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+              activePanel === 'bond' ? 'bg-purple-50 text-purple-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
+            )}
+          >
+            <UserCircle size={16} />
+          </button>
+          <button
+            onClick={() => togglePanel('diary')}
+            className={cn(
+              'flex items-center justify-center py-2 px-3 rounded-xl text-sm font-medium transition-colors',
+              activePanel === 'diary' ? 'bg-coral-50 text-coral-600' : 'bg-gray-50 text-gray-500 hover:bg-gray-100'
             )}
           >
             <BookHeart size={16} />
@@ -174,9 +192,15 @@ export function BeastCard({ work, beast, className }: BeastCardProps) {
           </Link>
         )}
 
-        {showDiary && (
+        {activePanel === 'diary' && (
           <div className="mt-4 pt-4 border-t border-gray-100">
             <MoodDiary diary={beast.moodDiary} beastName={beast.name} />
+          </div>
+        )}
+
+        {activePanel === 'bond' && bond && (
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <BondProfile bond={bond} beastName={beast.name} />
           </div>
         )}
       </div>

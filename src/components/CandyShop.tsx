@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, ShoppingBag, Check } from 'lucide-react';
+import { X, ShoppingBag, Check, RotateCcw } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import type { ShopItemCategory, ShopItem } from '../types';
 import { cn } from '../lib/utils';
@@ -16,9 +16,10 @@ const categoryLabels: Record<ShopItemCategory, { label: string; icon: string }> 
 };
 
 export function CandyShop({ workId, onClose }: CandyShopProps) {
-  const { shopItems, beasts, purchaseShopItem, getAvailableCandies } = useGameStore();
+  const { shopItems, beasts, purchaseShopItem, equipDecoration, resetDecorations, getAvailableCandies } = useGameStore();
   const [activeCategory, setActiveCategory] = useState<ShopItemCategory>('background');
   const [purchaseSuccess, setPurchaseSuccess] = useState<string | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const beast = beasts[workId];
   const availableCandies = getAvailableCandies();
@@ -35,8 +36,19 @@ export function CandyShop({ workId, onClose }: CandyShopProps) {
     }
   };
 
+  const handleEquip = (item: ShopItem) => {
+    equipDecoration(workId, item.id);
+  };
+
+  const handleReset = () => {
+    resetDecorations(workId);
+    setShowResetConfirm(false);
+  };
+
   const isEquipped = (item: ShopItem) => beast.decorations[item.category] === item.id;
+  const isOwned = (item: ShopItem) => beast.ownedDecorations.includes(item.id);
   const canAfford = (item: ShopItem) => availableCandies >= item.price;
+  const hasAnyDecoration = beast.decorations.background || beast.decorations.toy || beast.decorations.title;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -80,6 +92,7 @@ export function CandyShop({ workId, onClose }: CandyShopProps) {
         <div className="flex-1 overflow-y-auto p-5 space-y-3">
           {filteredItems.map(item => {
             const equipped = isEquipped(item);
+            const owned = isOwned(item);
             const affordable = canAfford(item);
 
             return (
@@ -91,6 +104,8 @@ export function CandyShop({ workId, onClose }: CandyShopProps) {
                     ? 'border-coral-200 bg-coral-50'
                     : purchaseSuccess === item.id
                     ? 'border-mint-200 bg-mint-50'
+                    : owned
+                    ? 'border-amber-100 bg-amber-50/50'
                     : 'border-transparent bg-gray-50'
                 )}
               >
@@ -103,35 +118,81 @@ export function CandyShop({ workId, onClose }: CandyShopProps) {
                         装备中
                       </span>
                     )}
+                    {owned && !equipped && (
+                      <span className="text-xs bg-amber-100 text-amber-500 px-2 py-0.5 rounded-full">
+                        已拥有
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">{item.description}</p>
                 </div>
-                <button
-                  onClick={() => handlePurchase(item)}
-                  disabled={equipped || !affordable}
-                  className={cn(
-                    'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-                    equipped
-                      ? 'bg-coral-100 text-coral-500 cursor-default'
-                      : purchaseSuccess === item.id
-                      ? 'bg-mint-100 text-mint-600'
-                      : affordable
-                      ? 'bg-gradient-to-r from-coral-500 to-peach-500 text-white hover:shadow-md'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  )}
-                >
-                  {equipped ? (
-                    <span className="flex items-center gap-1"><Check size={12} /> 已装备</span>
-                  ) : purchaseSuccess === item.id ? (
-                    <span className="flex items-center gap-1"><Check size={12} /> 成功</span>
-                  ) : (
-                    `🍬 ${item.price}`
-                  )}
-                </button>
+                {owned ? (
+                  <button
+                    onClick={() => !equipped && handleEquip(item)}
+                    disabled={equipped}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                      equipped
+                        ? 'bg-coral-100 text-coral-500 cursor-default'
+                        : 'bg-gradient-to-r from-amber-400 to-amber-500 text-white hover:shadow-md'
+                    )}
+                  >
+                    {equipped ? (
+                      <span className="flex items-center gap-1"><Check size={12} /> 已装备</span>
+                    ) : '装备'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handlePurchase(item)}
+                    disabled={!affordable}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                      purchaseSuccess === item.id
+                        ? 'bg-mint-100 text-mint-600'
+                        : affordable
+                        ? 'bg-gradient-to-r from-coral-500 to-peach-500 text-white hover:shadow-md'
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                    )}
+                  >
+                    {purchaseSuccess === item.id ? (
+                      <span className="flex items-center gap-1"><Check size={12} /> 成功</span>
+                    ) : `🍬 ${item.price}`}
+                  </button>
+                )}
               </div>
             );
           })}
         </div>
+
+        {hasAnyDecoration && (
+          <div className="p-4 border-t border-gray-100">
+            {showResetConfirm ? (
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-gray-600 flex-1">确认恢复默认小窝？</p>
+                <button
+                  onClick={handleReset}
+                  className="px-4 py-2 bg-red-50 text-red-500 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+                >
+                  确认
+                </button>
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="px-4 py-2 bg-gray-100 text-gray-500 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowResetConfirm(true)}
+                className="w-full flex items-center justify-center gap-2 py-2.5 text-gray-400 hover:text-gray-600 text-sm transition-colors"
+              >
+                <RotateCcw size={14} />
+                恢复默认小窝
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
