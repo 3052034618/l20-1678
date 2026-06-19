@@ -4,6 +4,7 @@ import { Works } from "@/pages/Works";
 import { Feed } from "@/pages/Feed";
 import { Urge } from "@/pages/Urge";
 import { Celebrate } from "@/pages/Celebrate";
+import { WorkSummary } from "@/pages/WorkSummary";
 import { NavBar } from "@/components/NavBar";
 
 export default function App() {
@@ -13,6 +14,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/works" element={<Works />} />
+          <Route path="/work/:workId" element={<WorkSummary />} />
           <Route path="/feed/:workId" element={<Feed />} />
           <Route path="/urge/:workId" element={<Urge />} />
           <Route path="/celebrate/:workId" element={<Celebrate />} />

@@ -225,4 +225,108 @@ export interface MonthlySummary {
   topWorkTitle: string;
   topWorkCover: string;
   consecutiveRecord: number;
+  shortComment: string;
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  category: 'consecutive' | 'feed' | 'urge' | 'celebrate' | 'decorate' | 'level';
+  tier: number;
+  threshold: number;
+}
+
+export const ACHIEVEMENT_LIST: Achievement[] = [
+  { id: 'consecutive-1', name: '初遇守候', icon: '🌱', description: '连续投喂 3 天', category: 'consecutive', tier: 1, threshold: 3 },
+  { id: 'consecutive-2', name: '一周陪伴', icon: '⭐', description: '连续投喂 7 天', category: 'consecutive', tier: 2, threshold: 7 },
+  { id: 'consecutive-3', name: '半月守护', icon: '🌟', description: '连续投喂 15 天', category: 'consecutive', tier: 3, threshold: 15 },
+  { id: 'consecutive-4', name: '月度羁绊', icon: '💫', description: '连续投喂 30 天', category: 'consecutive', tier: 4, threshold: 30 },
+
+  { id: 'feed-1', name: '初次投喂', icon: '🍬', description: '累计投喂 5 天', category: 'feed', tier: 1, threshold: 5 },
+  { id: 'feed-2', name: '投喂达人', icon: '🍭', description: '累计投喂 20 天', category: 'feed', tier: 2, threshold: 20 },
+  { id: 'feed-3', name: '守护天使', icon: '💝', description: '累计投喂 50 天', category: 'feed', tier: 3, threshold: 50 },
+
+  { id: 'urge-1', name: '温柔催促', icon: '💌', description: '催更 3 次', category: 'urge', tier: 1, threshold: 3 },
+  { id: 'urge-2', name: '催更小能手', icon: '📣', description: '催更 10 次', category: 'urge', tier: 2, threshold: 10 },
+  { id: 'urge-3', name: '应援队长', icon: '🏆', description: '催更 25 次', category: 'urge', tier: 3, threshold: 25 },
+
+  { id: 'celebrate-1', name: '初次相遇', icon: '🎉', description: '庆祝 1 次新章', category: 'celebrate', tier: 1, threshold: 1 },
+  { id: 'celebrate-2', name: '盼更守望', icon: '🎊', description: '庆祝 5 次新章', category: 'celebrate', tier: 2, threshold: 5 },
+  { id: 'celebrate-3', name: '不离不弃', icon: '🌈', description: '庆祝 10 次新章', category: 'celebrate', tier: 3, threshold: 10 },
+
+  { id: 'decorate-1', name: '初次装饰', icon: '🎨', description: '拥有 2 件装饰', category: 'decorate', tier: 1, threshold: 2 },
+  { id: 'decorate-2', name: '温馨小窝', icon: '🏠', description: '拥有 5 件装饰', category: 'decorate', tier: 2, threshold: 5 },
+  { id: 'decorate-3', name: '收藏家', icon: '👑', description: '拥有 9 件装饰', category: 'decorate', tier: 3, threshold: 9 },
+
+  { id: 'level-1', name: '熟悉伙伴', icon: '🐾', description: '达到 Lv.2', category: 'level', tier: 1, threshold: 2 },
+  { id: 'level-2', name: '默契搭档', icon: '🤝', description: '达到 Lv.3', category: 'level', tier: 2, threshold: 3 },
+  { id: 'level-3', name: '灵魂羁绊', icon: '💖', description: '达到 Lv.5', category: 'level', tier: 3, threshold: 5 },
+];
+
+export interface WorkInteractionStats {
+  favoriteAction: 'feed' | 'urge' | 'celebrate' | 'decorate';
+  favoriteCount: number;
+  recent7Days: TimelineEvent[];
+}
+
+export function getUnlockedAchievements(beast: Beast): Achievement[] {
+  return ACHIEVEMENT_LIST.filter(a => {
+    switch (a.category) {
+      case 'consecutive': return beast.consecutiveFedDays >= a.threshold;
+      case 'feed': return beast.totalFedDays >= a.threshold;
+      case 'urge': return beast.totalUrgeCount >= a.threshold;
+      case 'celebrate': return beast.totalCelebrateCount >= a.threshold;
+      case 'decorate': return beast.ownedDecorations.length >= a.threshold;
+      case 'level': return beast.level.level >= a.threshold;
+      default: return false;
+    }
+  });
+}
+
+export function generateMonthlyShortComment(summary: MonthlySummary, isSingleWork: boolean, workTitle?: string): string {
+  const actions = summary.feedCount + summary.urgeCount + summary.celebrateCount + summary.decorateCount;
+
+  if (actions === 0) {
+    return isSingleWork
+      ? `这个月还没和《${workTitle || ''}》的小兽互动，下个月要多陪陪它哦~`
+      : '这个月几乎没打开追更陪伴，下个月希望能多见到你呀！';
+  }
+
+  const highlights: string[] = [];
+
+  if (summary.feedCount > 0) {
+    if (summary.consecutiveRecord >= 30) highlights.push(`连续投喂了${summary.consecutiveRecord}天，真是超级守护者！`);
+    else if (summary.consecutiveRecord >= 7) highlights.push(`创下${summary.consecutiveRecord}天连投纪录，毅力可嘉~`);
+    else highlights.push(`投喂了${summary.feedCount}次，小兽肚子圆滚滚的啦`);
+  }
+
+  if (summary.celebrateCount > 0) {
+    highlights.push(`等到了${summary.celebrateCount}次新章，${isSingleWork ? '它' : '作者们'}没有辜负你的期待！`);
+  }
+
+  if (summary.urgeCount > 0 && summary.shareCount > 0) {
+    highlights.push(`催更${summary.urgeCount}次还分享了${summary.shareCount}次，是热情的应援者！`);
+  } else if (summary.urgeCount > 0) {
+    highlights.push(`温柔催更${summary.urgeCount}次，是默默支持的小可爱~`);
+  }
+
+  if (summary.decorateCount > 0) {
+    highlights.push(`给小窝添了${summary.decorateCount}件装饰，经营得有声有色！`);
+  }
+
+  if (summary.totalCandyEarned >= 50) {
+    highlights.push(`赚了${summary.totalCandyEarned}颗糖果，小钱包鼓鼓的~`);
+  }
+
+  if (isSingleWork && workTitle && summary.topWorkTitle) {
+    return `【${workTitle}】这个月${highlights.slice(0, 2).join('，')}。继续一起等更新吧！`;
+  }
+
+  if (summary.topWorkTitle) {
+    return `本月最陪伴${summary.topWorkCover}《${summary.topWorkTitle}》，${highlights.slice(0, 2).join('，')}。下月也请多多关照~`;
+  }
+
+  return highlights.slice(0, 2).join('，') + '。下月见！';
 }

@@ -2,6 +2,14 @@ import { useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { MonthlyReview } from './MonthlyReview';
+import type { TimelineEvent } from '../types';
+
+const COMPANIONSHIP_TYPES = new Set(['feed', 'urge', 'celebrate', 'decorate']);
+
+function filterEvents(timeline: TimelineEvent[], filterWorkId: string): TimelineEvent[] {
+  if (filterWorkId === 'all') return timeline;
+  return timeline.filter(e => e.workId === filterWorkId && COMPANIONSHIP_TYPES.has(e.type));
+}
 
 export function Timeline() {
   const { timeline, works, subscribedWorkIds, getMonthlySummary } = useGameStore();
@@ -11,9 +19,7 @@ export function Timeline() {
   const [showMonthlyReview, setShowMonthlyReview] = useState(false);
 
   const subscribedWorks = works.filter(w => subscribedWorkIds.includes(w.id));
-  const filteredTimeline = filterWorkId === 'all'
-    ? timeline
-    : timeline.filter(e => e.workId === filterWorkId);
+  const filteredTimeline = filterEvents(timeline, filterWorkId);
 
   const dates = [...new Set(
     filteredTimeline.map(e => {
@@ -51,10 +57,9 @@ export function Timeline() {
 
   const displayDates = showAll ? dates : dates.slice(0, 7);
 
-  const currentMonthSummary = (() => {
-    const now = new Date();
-    return getMonthlySummary(now.getFullYear(), now.getMonth(), filterWorkId !== 'all' ? filterWorkId : undefined);
-  })();
+  const now = new Date();
+  const currentMonthSummary = getMonthlySummary(now.getFullYear(), now.getMonth(),
+    filterWorkId !== 'all' ? filterWorkId : undefined);
 
   if (timeline.length === 0) return null;
 
@@ -72,7 +77,7 @@ export function Timeline() {
               className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-xs font-medium hover:bg-amber-100 transition-colors"
             >
               <BarChart3 size={14} />
-              本月回顾
+              {filterWorkId !== 'all' ? '本作品回顾' : '本月回顾'}
             </button>
           )}
         </div>
@@ -102,6 +107,12 @@ export function Timeline() {
             </button>
           ))}
         </div>
+
+        {filterWorkId !== 'all' && (
+          <p className="text-xs text-gray-400 mb-3 bg-gray-50 rounded-lg px-3 py-2">
+            💡 作品筛选视图仅显示陪伴动作（投喂、催更、庆祝、装饰）
+          </p>
+        )}
 
         <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
           {displayDates.map(dateStr => (
@@ -161,8 +172,12 @@ export function Timeline() {
         )}
       </div>
 
-      {showMonthlyReview && currentMonthSummary && (
-        <MonthlyReview summary={currentMonthSummary} onClose={() => setShowMonthlyReview(false)} />
+      {showMonthlyReview && (
+        <MonthlyReview
+          workId={filterWorkId !== 'all' ? filterWorkId : undefined}
+          workTitle={filterWorkId !== 'all' ? subscribedWorks.find(w => w.id === filterWorkId)?.title : undefined}
+          onClose={() => setShowMonthlyReview(false)}
+        />
       )}
     </>
   );

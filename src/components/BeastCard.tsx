@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, Megaphone, Clock, Star, BookHeart, ShoppingBag, UserCircle } from 'lucide-react';
+import { Heart, Megaphone, Clock, Star, BookHeart, ShoppingBag, UserCircle, FileText } from 'lucide-react';
 import { BeastSvg } from './BeastSvg';
 import { MoodDiary } from './MoodDiary';
 import { CandyShop } from './CandyShop';
 import { BondProfile } from './BondProfile';
+import { AchievementBadges } from './AchievementBadges';
 import type { Beast, Work } from '../types';
 import { getExpForNextLevel, getAvailableCandies } from '../types';
 import { cn } from '../lib/utils';
@@ -78,38 +79,46 @@ export function BeastCard({ work, beast, className }: BeastCardProps) {
           </div>
         )}
 
-        <div className="flex justify-center mb-3 relative">
-          <BeastSvg color={beast.color} status={beast.status} size={100} />
-          {decos.toy && toyEmoji[decos.toy] && (
-            <div className="absolute -right-1 bottom-0 text-xl">{toyEmoji[decos.toy]}</div>
-          )}
-        </div>
-
-        <div className="text-center mb-2">
-          <h3 className="font-bold text-gray-800 text-lg mb-1">
-            {work.title}
-          </h3>
-          <p className="text-sm text-gray-500">{work.author}</p>
-          {decos.title && (
-            <p className="text-xs text-coral-500 font-medium mt-1">
-              👑 {decos.title === 'title-waiter' ? '守候之星' : decos.title === 'title-fan' ? '忠实读者' : '甜蜜守护'}
-            </p>
-          )}
-        </div>
-
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <span className={cn('text-xs px-3 py-1 rounded-full font-medium', statusInfo.color)}>
-            {statusInfo.label}
-          </span>
-        </div>
-
-        <div className="flex items-center justify-center gap-3 mb-3">
-          <div className="flex items-center gap-1.5">
-            <Star size={14} className="text-amber-500 fill-amber-500" />
-            <span className="text-xs font-bold text-amber-600">Lv.{beast.level.level}</span>
-            <span className="text-xs text-gray-400">{beast.level.title}</span>
+        <Link to={`/work/${work.id}`} className="block">
+          <div className="flex justify-center mb-3 relative">
+            <BeastSvg color={beast.color} status={beast.status} size={100} />
+            {decos.toy && toyEmoji[decos.toy] && (
+              <div className="absolute -right-1 bottom-0 text-xl pointer-events-none">
+                {toyEmoji[decos.toy]}
+              </div>
+            )}
           </div>
-        </div>
+
+          <div className="text-center mb-2">
+            <h3 className="font-bold text-gray-800 text-lg mb-1">
+              {work.title}
+            </h3>
+            <p className="text-sm text-gray-500">{work.author}</p>
+            {decos.title && (
+              <p className="text-xs text-coral-500 font-medium mt-1">
+                👑 {decos.title === 'title-waiter' ? '守候之星' : decos.title === 'title-fan' ? '忠实读者' : '甜蜜守护'}
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <span className={cn('text-xs px-3 py-1 rounded-full font-medium', statusInfo.color)}>
+              {statusInfo.label}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-center gap-3 mb-2">
+            <div className="flex items-center gap-1.5">
+              <Star size={14} className="text-amber-500 fill-amber-500" />
+              <span className="text-xs font-bold text-amber-600">Lv.{beast.level.level}</span>
+              <span className="text-xs text-gray-400">{beast.level.title}</span>
+            </div>
+          </div>
+
+          <div className="flex justify-center mb-3 min-h-[32px]">
+            <AchievementBadges beast={beast} size="sm" />
+          </div>
+        </Link>
 
         <div className="w-full bg-gray-100 rounded-full h-2 mb-1">
           <div
@@ -181,6 +190,13 @@ export function BeastCard({ work, beast, className }: BeastCardProps) {
           >
             <BookHeart size={16} />
           </button>
+          <Link
+            to={`/work/${work.id}`}
+            className="flex items-center justify-center py-2 px-3 bg-coral-50 text-coral-500 rounded-xl text-sm font-medium hover:bg-coral-100 transition-colors"
+            title="查看陪伴档案"
+          >
+            <FileText size={16} />
+          </Link>
         </div>
 
         {hasNewChapter && (

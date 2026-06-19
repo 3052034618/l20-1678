@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { Work, Beast, BeastStatus, Candy, UrgeState, UrgeMessage, CelebrationRecord, SupportCard, MoodEntry, TimelineEvent, TimelineEventType, ShopItem, BondStats, MonthlySummary } from '../types';
-import { MOOD_MAP, getLevelFromExp, getAvailableCandies, BEAST_DIALOGUES } from '../types';
+import type { Work, Beast, BeastStatus, Candy, UrgeState, UrgeMessage, CelebrationRecord, SupportCard, MoodEntry, TimelineEvent, TimelineEventType, ShopItem, BondStats, MonthlySummary, WorkInteractionStats } from '../types';
+import { MOOD_MAP, getLevelFromExp, getAvailableCandies, BEAST_DIALOGUES, generateMonthlyShortComment } from '../types';
 import { mockWorks, urgeStates as mockUrgeStates, beastColors, encouragementMessages, supportCardSlogans, shopItems } from '../data/mockWorks';
 import { loadFromStorage, saveToStorage, isSameDay, getDaysSince, generateBeastName } from '../utils/storage';
 
@@ -32,6 +32,7 @@ interface GameState {
   getTimelineForWork: (workId: string) => TimelineEvent[];
   getBondProfile: (workId: string) => BondStats | null;
   getMonthlySummary: (year: number, month: number, workId?: string) => MonthlySummary | null;
+  getWorkInteractionStats: (workId: string) => WorkInteractionStats;
   checkDailyReset: () => void;
   getEncouragementMessages: () => string[];
   getAvailableCandies: () => number;
@@ -61,8 +62,12 @@ function addTimelineEvent(events: TimelineEvent[], event: TimelineEvent): Timeli
 }
 
 function buildSupportCardMessages(messages: UrgeMessage[]): string[] {
-  const userMsgs = messages.filter(m => m.isUser);
-  const otherMsgs = messages.filter(m => !m.isUser);
+  const userMsgs = [...messages.filter(m => m.isUser)].sort((a, b) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  const otherMsgs = [...messages.filter(m => !m.isUser)].sort((a, b) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
   const selected: string[] = [];
   for (const m of userMsgs) {
     if (selected.length >= 2) break;
@@ -720,7 +725,17 @@ export const useGameStore = create<GameState>((set, get) => ({
       return true;
     });
 
-    if (monthEvents.length === 0) return null;
+    if (monthEvents.length === 0) {
+      const dummy: MonthlySummary = {
+        year, month, feedCount: 0, urgeCount: 0, shareCount: 0,
+        celebrateCount: 0, decorateCount: 0, totalCandyEarned: 0,
+        topWorkTitle: '', topWorkCover: '📖', consecutiveRecord: 0,
+        shortComment: '',
+      };
+      dummy.shortComment = generateMonthlyShortComment(dummy, !!workId,
+        workId ? state.works.find(w => w.id === workId)?.title : undefined);
+      return dummy;
+    }
 
     const feedCount = monthEvents.filter(e => e.type === 'feed').length;
     const urgeCount = monthEvents.filter(e => e.type === 'urge').length;
@@ -749,7 +764,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       : Object.values(state.beasts);
     const consecutiveRecord = Math.max(...relevantBeasts.map(b => b?.consecutiveFedDays || 0), 0);
 
-    return {
+    const summary: MonthlySummary = {
       year,
       month,
       feedCount,
@@ -761,6 +776,41 @@ export const useGameStore = create<GameState>((set, get) => ({
       topWorkTitle: topWork?.title || '',
       topWorkCover: topWork?.cover || '📖',
       consecutiveRecord,
+      shortComment: '',
+    };
+    summary.shortComment = generateMonthlyShortComment(summary, !!workId,
+      workId ? state.works.find(w => w.id === workId)?.title : undefined);
+    return summary;
+  },
+
+  getWorkInteractionStats: (workId: string) => {
+    const state = get();
+    const workEvents = state.timeline.filter(e => e.workId === workId);
+    const feedCount = workEvents.filter(e => e.type === 'feed').length;
+    const urgeCount = workEvents.filter(e => e.type === 'urge').length;
+    const celebrateCount = workEvents.filter(e => e.type === 'celebrate').length;
+    const decorateCount = workEvents.filter(e => e.type === 'decorate').length;
+
+    const counts = [
+      { key: 'feed' as const, value: feedCount },
+      { key: 'urge' as const, value: urgeCount },
+      { key: 'celebrate' as const, value: celebrateCount },
+      { key: 'decorate' as const, value: decorateCount },
+    ];
+    const favorite = counts.slice().sort((a, b) => b.value - a.value)[0];
+    const favoriteAction = favorite.value > 0 ? favorite.key : 'feed';
+    const favoriteCount = favorite.value > 0 ? favorite.value : 0;
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const recent7Days = workEvents
+      .filter(e => new Date(e.timestamp) >= sevenDaysAgo)
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    return {
+      favoriteAction,
+      favoriteCount,
+      recent7Days,
     };
   },
 
